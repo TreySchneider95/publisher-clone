@@ -1,8 +1,11 @@
 """Single source of truth for application version and release notes."""
 
-VERSION = "1.0.0"
+VERSION = "1.1.0"
 
 RELEASE_NOTES = {
+    "1.1.0": [
+        "Constrain scrolling to page bounds for defined-size pages",
+    ],
     "1.0.0": [
         "Initial release",
         "Multi-page document support with customizable page sizes",

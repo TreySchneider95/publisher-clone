@@ -21,11 +21,20 @@ class PublisherScene(QGraphicsScene):
         self._show_grid = False
         self._grid_spacing = 18  # 0.25 inch in points
 
-        # Infinite canvas: large scene rect
-        self.setSceneRect(-_CANVAS_EXTENT, -_CANVAS_EXTENT,
-                          _CANVAS_EXTENT * 2, _CANVAS_EXTENT * 2)
+        self._update_scene_rect()
 
         self.selectionChanged.connect(self._on_selection_changed)
+
+    def _update_scene_rect(self):
+        """Set scene rect based on page size — bounded for defined pages, large for infinite."""
+        if self._is_defined_size():
+            margin = 36  # half-inch margin around page
+            self.setSceneRect(-margin, -margin,
+                              self.page_width + margin * 2,
+                              self.page_height + margin * 2)
+        else:
+            self.setSceneRect(-_CANVAS_EXTENT, -_CANVAS_EXTENT,
+                              _CANVAS_EXTENT * 2, _CANVAS_EXTENT * 2)
 
     def set_tool_manager(self, tm):
         self._tool_manager = tm

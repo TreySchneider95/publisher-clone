@@ -422,6 +422,7 @@ class MainWindow(QMainWindow):
             scene = self.scenes[index]
             scene.page_width = w
             scene.page_height = h
+            scene._update_scene_rect()
             scene.update()
             self._refresh_pages_panel()
             self.document.mark_dirty()
