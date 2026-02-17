@@ -6,6 +6,7 @@ RELEASE_NOTES = {
     "1.1.0": [
         "Constrain scrolling to page bounds for defined-size pages",
         "Page size dialog auto-switches to Custom when editing dimensions",
+        "Properties panel auto-shows on selection and hides when nothing is selected",
     ],
     "1.0.0": [
         "Initial release",

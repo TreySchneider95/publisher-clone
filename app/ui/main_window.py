@@ -233,9 +233,10 @@ class MainWindow(QMainWindow):
         self.toolbar.zoom_out_action.triggered.connect(lambda: self.view.zoom_out())
         self.toolbar.zoom_fit_action.triggered.connect(lambda: self.view.zoom_fit())
 
-        # Properties panel (right dock)
+        # Properties panel (right dock) — hidden until something is selected
         self.properties_panel = PropertiesPanel()
         self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.properties_panel)
+        self.properties_panel.setVisible(False)
 
         # Layers panel (bottom dock)
         self.layers_panel = LayersPanel()
@@ -339,7 +340,7 @@ class MainWindow(QMainWindow):
         try:
             scene = self.current_scene
             if not scene:
-                self.properties_panel.clear()
+                self.properties_panel.setVisible(False)
                 return
             selected = scene.selectedItems()
             # Refresh layers first, then highlight the selected row
@@ -348,11 +349,12 @@ class MainWindow(QMainWindow):
                 item = selected[0]
                 if hasattr(item, 'item_data'):
                     self.properties_panel.update_from_item(item)
+                    self.properties_panel.setVisible(True)
                     self.layers_panel.select_item(item)
                 else:
-                    self.properties_panel.clear()
+                    self.properties_panel.setVisible(False)
             else:
-                self.properties_panel.clear()
+                self.properties_panel.setVisible(False)
         finally:
             self._in_selection_change = False
 
@@ -365,6 +367,7 @@ class MainWindow(QMainWindow):
                 self.current_scene.clearSelection()
                 item.setSelected(True)
                 self.properties_panel.update_from_item(item)
+                self.properties_panel.setVisible(True)
             finally:
                 self._in_selection_change = False
 
