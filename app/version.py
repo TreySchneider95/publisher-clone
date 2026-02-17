@@ -5,6 +5,7 @@ VERSION = "1.1.0"
 RELEASE_NOTES = {
     "1.1.0": [
         "Constrain scrolling to page bounds for defined-size pages",
+        "Page size dialog auto-switches to Custom when editing dimensions",
     ],
     "1.0.0": [
         "Initial release",
