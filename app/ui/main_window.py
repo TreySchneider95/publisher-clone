@@ -4,7 +4,7 @@ from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
     QFileDialog, QMessageBox, QPushButton
 )
-from PyQt6.QtCore import Qt, QPointF, QRect
+from PyQt6.QtCore import Qt, QPointF, QRect, QTimer
 from PyQt6.QtGui import QPainter, QColor, QPen
 
 from app.canvas.canvas_scene import PublisherScene
@@ -334,15 +334,18 @@ class MainWindow(QMainWindow):
             self.status_bar_widget.update_cursor(pos)
 
     def _show_properties_panel(self):
-        """Show the properties panel and scroll to keep the selected item visible."""
+        """Show the properties panel docked on the right, scrolling to keep the selected item visible."""
         was_hidden = not self.properties_panel.isVisible()
         if was_hidden:
-            self.properties_panel.setFloating(False)
+            self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.properties_panel)
             self.properties_panel.show()
-        if was_hidden and self.current_scene:
-            selected = self.current_scene.selectedItems()
-            if selected:
-                self.view.ensureVisible(selected[0].sceneBoundingRect(), 50, 50)
+            # Defer scroll until after the layout has settled
+            if self.current_scene:
+                selected = self.current_scene.selectedItems()
+                if selected:
+                    item = selected[0]
+                    QTimer.singleShot(0, lambda: self.view.ensureVisible(
+                        item.sceneBoundingRect(), 50, 50))
 
     def _on_selection_changed(self):
         if self._in_selection_change:
