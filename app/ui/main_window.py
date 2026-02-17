@@ -334,10 +334,15 @@ class MainWindow(QMainWindow):
             self.status_bar_widget.update_cursor(pos)
 
     def _show_properties_panel(self):
-        """Show the properties panel docked on the right (never floating)."""
-        if not self.properties_panel.isVisible():
+        """Show the properties panel and scroll to keep the selected item visible."""
+        was_hidden = not self.properties_panel.isVisible()
+        if was_hidden:
             self.properties_panel.setFloating(False)
             self.properties_panel.show()
+        if was_hidden and self.current_scene:
+            selected = self.current_scene.selectedItems()
+            if selected:
+                self.view.ensureVisible(selected[0].sceneBoundingRect(), 50, 50)
 
     def _on_selection_changed(self):
         if self._in_selection_change:
