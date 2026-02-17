@@ -333,6 +333,12 @@ class MainWindow(QMainWindow):
         if hasattr(self, 'status_bar_widget'):
             self.status_bar_widget.update_cursor(pos)
 
+    def _show_properties_panel(self):
+        """Show the properties panel docked on the right (never floating)."""
+        if not self.properties_panel.isVisible():
+            self.properties_panel.setFloating(False)
+            self.properties_panel.show()
+
     def _on_selection_changed(self):
         if self._in_selection_change:
             return
@@ -340,7 +346,7 @@ class MainWindow(QMainWindow):
         try:
             scene = self.current_scene
             if not scene:
-                self.properties_panel.setVisible(False)
+                self.properties_panel.hide()
                 return
             selected = scene.selectedItems()
             # Refresh layers first, then highlight the selected row
@@ -349,12 +355,12 @@ class MainWindow(QMainWindow):
                 item = selected[0]
                 if hasattr(item, 'item_data'):
                     self.properties_panel.update_from_item(item)
-                    self.properties_panel.setVisible(True)
+                    self._show_properties_panel()
                     self.layers_panel.select_item(item)
                 else:
-                    self.properties_panel.setVisible(False)
+                    self.properties_panel.hide()
             else:
-                self.properties_panel.setVisible(False)
+                self.properties_panel.hide()
         finally:
             self._in_selection_change = False
 
@@ -367,7 +373,7 @@ class MainWindow(QMainWindow):
                 self.current_scene.clearSelection()
                 item.setSelected(True)
                 self.properties_panel.update_from_item(item)
-                self.properties_panel.setVisible(True)
+                self._show_properties_panel()
             finally:
                 self._in_selection_change = False
 
