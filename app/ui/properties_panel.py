@@ -28,6 +28,8 @@ class PropertiesPanel(QDockWidget):
     align_top_requested = pyqtSignal()
     align_bottom_requested = pyqtSignal()
     align_center_v_requested = pyqtSignal()
+    distribute_h_requested = pyqtSignal()
+    distribute_v_requested = pyqtSignal()
 
     def __init__(self, parent=None):
         super().__init__("Properties", parent)
@@ -210,6 +212,15 @@ class PropertiesPanel(QDockWidget):
         bottom_btn.clicked.connect(self.align_bottom_requested.emit)
         row2.addWidget(bottom_btn)
         layout.addLayout(row2)
+
+        row3 = QHBoxLayout()
+        dist_h_btn = QPushButton("Distribute H")
+        dist_h_btn.clicked.connect(self.distribute_h_requested.emit)
+        row3.addWidget(dist_h_btn)
+        dist_v_btn = QPushButton("Distribute V")
+        dist_v_btn.clicked.connect(self.distribute_v_requested.emit)
+        row3.addWidget(dist_v_btn)
+        layout.addLayout(row3)
 
         self._align_group.setLayout(layout)
         self._layout.addWidget(self._align_group)

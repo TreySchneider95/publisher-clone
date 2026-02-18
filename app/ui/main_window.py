@@ -247,6 +247,8 @@ class MainWindow(QMainWindow):
         self.properties_panel.align_top_requested.connect(lambda: self._align('top'))
         self.properties_panel.align_bottom_requested.connect(lambda: self._align('bottom'))
         self.properties_panel.align_center_v_requested.connect(lambda: self._align('center_v'))
+        self.properties_panel.distribute_h_requested.connect(lambda: self._distribute('horizontal'))
+        self.properties_panel.distribute_v_requested.connect(lambda: self._distribute('vertical'))
 
         # Layers panel (bottom dock, hidden by default)
         self.layers_panel = LayersPanel()
@@ -488,6 +490,10 @@ class MainWindow(QMainWindow):
         if self.current_scene:
             self.current_scene.align_items(alignment)
 
+    def _distribute(self, direction: str):
+        if self.current_scene:
+            self.current_scene.distribute_items(direction)
+
     def _on_unit_changed(self, unit):
         self.document.unit = unit
         self.h_ruler.set_unit(unit)
@@ -536,6 +542,9 @@ class MainWindow(QMainWindow):
             new_data.id = old_to_new[data.id]
             new_data.x += 20
             new_data.y += 20
+            if hasattr(new_data, 'x2'):
+                new_data.x2 += 20
+                new_data.y2 += 20
             # Remap child_ids for groups
             if isinstance(new_data, GroupItemData):
                 new_data.child_ids = [

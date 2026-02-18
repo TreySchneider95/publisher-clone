@@ -249,3 +249,41 @@ class PublisherScene(QGraphicsScene):
         for item, _ in rects:
             if hasattr(item, 'sync_to_data'):
                 item.sync_to_data()
+
+    def distribute_items(self, direction: str):
+        """Distribute selected items with equal gaps between edges.
+
+        direction: 'horizontal' or 'vertical'
+        Requires 3+ selected items; the outermost two stay fixed.
+        """
+        items = [i for i in self.selectedItems()
+                 if hasattr(i, 'item_data')]
+        if len(items) < 3:
+            return
+
+        rects = [(item, item.sceneBoundingRect()) for item in items]
+
+        if direction == 'horizontal':
+            rects.sort(key=lambda pair: pair[1].left())
+            total_span = rects[-1][1].right() - rects[0][1].left()
+            total_widths = sum(r.width() for _, r in rects)
+            gap = (total_span - total_widths) / (len(rects) - 1)
+            cursor = rects[0][1].right() + gap
+            for item, r in rects[1:-1]:
+                dx = item.pos().x() - r.left()
+                item.setPos(cursor + dx, item.pos().y())
+                cursor += r.width() + gap
+        else:
+            rects.sort(key=lambda pair: pair[1].top())
+            total_span = rects[-1][1].bottom() - rects[0][1].top()
+            total_heights = sum(r.height() for _, r in rects)
+            gap = (total_span - total_heights) / (len(rects) - 1)
+            cursor = rects[0][1].bottom() + gap
+            for item, r in rects[1:-1]:
+                dy = item.pos().y() - r.top()
+                item.setPos(item.pos().x(), cursor + dy)
+                cursor += r.height() + gap
+
+        for item, _ in rects:
+            if hasattr(item, 'sync_to_data'):
+                item.sync_to_data()

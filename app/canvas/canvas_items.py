@@ -9,8 +9,8 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt, QRectF, QPointF, QLineF
 from PyQt6.QtGui import (
-    QPen, QColor, QBrush, QPainter, QPainterPath, QFont,
-    QPolygonF, QPixmap, QImage, QTransform
+    QPen, QColor, QBrush, QPainter, QPainterPath, QPainterPathStroker,
+    QFont, QPolygonF, QPixmap, QImage, QTransform
 )
 import base64
 
@@ -154,6 +154,14 @@ class PublisherLineItem(QGraphicsLineItem, PublisherItemMixin):
     def _apply_style(self):
         self.setPen(self._make_pen())
 
+    def shape(self) -> QPainterPath:
+        path = QPainterPath()
+        path.moveTo(self.line().p1())
+        path.lineTo(self.line().p2())
+        stroker = QPainterPathStroker()
+        stroker.setWidth(max(self.item_data.stroke_width, 8))
+        return stroker.createStroke(path)
+
     def sync_from_data(self):
         super().sync_from_data()
         d = self.item_data
@@ -181,6 +189,14 @@ class PublisherArrowItem(QGraphicsLineItem, PublisherItemMixin):
 
     def _apply_style(self):
         self.setPen(self._make_pen())
+
+    def shape(self) -> QPainterPath:
+        path = QPainterPath()
+        path.moveTo(self.line().p1())
+        path.lineTo(self.line().p2())
+        stroker = QPainterPathStroker()
+        stroker.setWidth(max(self.item_data.stroke_width, 8))
+        return stroker.createStroke(path)
 
     def boundingRect(self):
         extra = self.item_data.arrow_size + self.item_data.stroke_width

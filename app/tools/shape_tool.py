@@ -1,5 +1,7 @@
 """Shape tool - rect/ellipse/line/arrow via click-drag, polygon via click-click."""
 
+import math
+
 from PyQt6.QtWidgets import QGraphicsRectItem, QGraphicsLineItem, QGraphicsEllipseItem
 from PyQt6.QtCore import Qt, QPointF, QRectF
 from PyQt6.QtGui import QPen, QColor, QBrush
@@ -79,6 +81,8 @@ class ShapeTool(BaseTool):
             rect = self._make_rect(self._start_pos, pos)
             self._preview_item.setRect(rect)
         elif self.shape_type in (ToolType.LINE, ToolType.ARROW):
+            if event.modifiers() & Qt.KeyboardModifier.ShiftModifier:
+                pos = self._snap_angle(self._start_pos, pos)
             self._preview_item.setLine(
                 self._start_pos.x(), self._start_pos.y(),
                 pos.x(), pos.y()
@@ -97,6 +101,10 @@ class ShapeTool(BaseTool):
         scene = self.canvas.get_scene()
         if not scene:
             return
+
+        if self.shape_type in (ToolType.LINE, ToolType.ARROW):
+            if event.modifiers() & Qt.KeyboardModifier.ShiftModifier:
+                pos = self._snap_angle(self._start_pos, pos)
 
         if self.shape_type == ToolType.RECT:
             self._create_rect(self._start_pos, pos, scene)
@@ -249,6 +257,19 @@ class ShapeTool(BaseTool):
         if self._preview_item and self._preview_item.scene():
             self._preview_item.scene().removeItem(self._preview_item)
         self._preview_item = None
+
+    def _snap_angle(self, start: QPointF, end: QPointF) -> QPointF:
+        """Snap the line angle to the nearest 15-degree increment."""
+        dx = end.x() - start.x()
+        dy = end.y() - start.y()
+        dist = math.hypot(dx, dy)
+        if dist == 0:
+            return end
+        angle = math.atan2(dy, dx)
+        snap_rad = math.radians(15)
+        angle = round(angle / snap_rad) * snap_rad
+        return QPointF(start.x() + dist * math.cos(angle),
+                       start.y() + dist * math.sin(angle))
 
     @property
     def cursor(self):
