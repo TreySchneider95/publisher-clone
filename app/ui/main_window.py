@@ -237,11 +237,22 @@ class MainWindow(QMainWindow):
         self.properties_panel = PropertiesPanel()
         self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.properties_panel)
         self.properties_panel.setVisible(False)
+        self.properties_panel.send_to_front_requested.connect(self._send_to_front)
+        self.properties_panel.send_to_back_requested.connect(self._send_to_back)
+        self.properties_panel.flip_h_requested.connect(lambda: self._flip_item("h"))
+        self.properties_panel.flip_v_requested.connect(lambda: self._flip_item("v"))
+        self.properties_panel.align_left_requested.connect(lambda: self._align('left'))
+        self.properties_panel.align_right_requested.connect(lambda: self._align('right'))
+        self.properties_panel.align_center_h_requested.connect(lambda: self._align('center_h'))
+        self.properties_panel.align_top_requested.connect(lambda: self._align('top'))
+        self.properties_panel.align_bottom_requested.connect(lambda: self._align('bottom'))
+        self.properties_panel.align_center_v_requested.connect(lambda: self._align('center_v'))
 
-        # Layers panel (bottom dock)
+        # Layers panel (bottom dock, hidden by default)
         self.layers_panel = LayersPanel()
         self.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, self.layers_panel)
         self.layers_panel.item_selected.connect(self._on_layer_item_selected)
+        self.layers_panel.hide()
 
         # Status bar
         self.status_bar_widget = PublisherStatusBar()
@@ -564,6 +575,102 @@ class MainWindow(QMainWindow):
             return
         for item in self.current_scene.get_publisher_items():
             item.setSelected(True)
+
+    # --- Z-Order and Flip ---
+
+    def _send_to_front(self):
+        if not self.current_scene:
+            return
+        from app.commands.property_commands import ChangeZOrderCommand
+        from app.canvas.canvas_items import PublisherGroupItem
+        selected = [i for i in self.current_scene.selectedItems() if hasattr(i, 'item_data')]
+        if not selected:
+            return
+        all_items = self.current_scene.get_publisher_items()
+        if not all_items:
+            return
+        max_z = max(i.item_data.z_value for i in all_items)
+        item = selected[0]
+        items_to_move = [item]
+        if isinstance(item, PublisherGroupItem):
+            items_to_move.extend(item.get_child_items(self.current_scene))
+        use_macro = len(items_to_move) > 1
+        if use_macro:
+            self.command_stack.stack.beginMacro("Send to Front")
+        for it in items_to_move:
+            max_z += 1
+            cmd = ChangeZOrderCommand(it, it.item_data.z_value, max_z, "Send to Front")
+            self.command_stack.push(cmd)
+        if use_macro:
+            self.command_stack.stack.endMacro()
+        self.document.mark_dirty()
+
+    def _send_to_back(self):
+        if not self.current_scene:
+            return
+        from app.commands.property_commands import ChangeZOrderCommand
+        from app.canvas.canvas_items import PublisherGroupItem
+        selected = [i for i in self.current_scene.selectedItems() if hasattr(i, 'item_data')]
+        if not selected:
+            return
+        all_items = self.current_scene.get_publisher_items()
+        if not all_items:
+            return
+        min_z = min(i.item_data.z_value for i in all_items)
+        item = selected[0]
+        items_to_move = [item]
+        if isinstance(item, PublisherGroupItem):
+            items_to_move.extend(item.get_child_items(self.current_scene))
+        use_macro = len(items_to_move) > 1
+        if use_macro:
+            self.command_stack.stack.beginMacro("Send to Back")
+        for it in items_to_move:
+            min_z -= 1
+            cmd = ChangeZOrderCommand(it, it.item_data.z_value, min_z, "Send to Back")
+            self.command_stack.push(cmd)
+        if use_macro:
+            self.command_stack.stack.endMacro()
+        self.document.mark_dirty()
+
+    def _flip_item(self, axis: str):
+        if not self.current_scene:
+            return
+        from app.commands.property_commands import FlipItemCommand, ChangePropertyCommand
+        from app.canvas.canvas_items import PublisherGroupItem
+        selected = [i for i in self.current_scene.selectedItems() if hasattr(i, 'item_data')]
+        if not selected:
+            return
+        item = selected[0]
+        if isinstance(item, PublisherGroupItem):
+            children = item.get_child_items(self.current_scene)
+            if not children:
+                return
+            self.command_stack.stack.beginMacro(f"Flip {'Horizontal' if axis == 'h' else 'Vertical'}")
+            # Flip each child's flip state
+            for child in children:
+                cmd = FlipItemCommand(child, axis, "Flip Child")
+                self.command_stack.push(cmd)
+            # Mirror child positions within group bounds
+            gx = item.item_data.x
+            gy = item.item_data.y
+            gw = item.item_data.width
+            gh = item.item_data.height
+            for child in children:
+                cd = child.item_data
+                if axis == "h":
+                    new_x = gx + (gx + gw) - (cd.x + cd.width)
+                    cmd = ChangePropertyCommand(child, "x", cd.x, new_x, "Mirror X")
+                    self.command_stack.push(cmd)
+                else:
+                    new_y = gy + (gy + gh) - (cd.y + cd.height)
+                    cmd = ChangePropertyCommand(child, "y", cd.y, new_y, "Mirror Y")
+                    self.command_stack.push(cmd)
+            self.command_stack.stack.endMacro()
+        else:
+            cmd = FlipItemCommand(item, axis,
+                                  f"Flip {'Horizontal' if axis == 'h' else 'Vertical'}")
+            self.command_stack.push(cmd)
+        self.document.mark_dirty()
 
     # --- Custom shape library ---
 

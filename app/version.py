@@ -7,6 +7,10 @@ RELEASE_NOTES = {
         "Constrain scrolling to page bounds for defined-size pages",
         "Page size dialog auto-switches to Custom when editing dimensions",
         "Properties panel auto-shows on selection and hides when nothing is selected",
+        "Layer Order controls (Send to Front / Send to Back) in properties panel",
+        "Flip Horizontal / Flip Vertical controls in properties panel",
+        "Layers panel hidden by default (click tab to show)",
+        "Alignment controls in properties panel",
     ],
     "1.0.0": [
         "Initial release",

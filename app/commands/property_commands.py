@@ -61,6 +61,27 @@ class ChangeFontCommand(QUndoCommand):
             self.item.sync_from_data()
 
 
+class FlipItemCommand(QUndoCommand):
+    """Toggle flip_h or flip_v on an item."""
+
+    def __init__(self, item, axis: str, text="Flip Item"):
+        super().__init__(text)
+        self.item = item
+        self.axis = axis  # "h" or "v"
+
+    def redo(self):
+        if hasattr(self.item, 'item_data'):
+            if self.axis == "h":
+                self.item.item_data.flip_h = not self.item.item_data.flip_h
+            else:
+                self.item.item_data.flip_v = not self.item.item_data.flip_v
+            self.item.sync_from_data()
+
+    def undo(self):
+        # Toggle again to reverse
+        self.redo()
+
+
 class ChangeZOrderCommand(QUndoCommand):
     """Change z-order of an item."""
 

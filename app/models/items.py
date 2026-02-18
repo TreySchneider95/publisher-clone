@@ -25,6 +25,8 @@ class ItemData:
     locked: bool = False
     visible: bool = True
     name: str = ""
+    flip_h: bool = False
+    flip_v: bool = False
 
     # Fill and stroke
     fill_color: str = "#4A90D9"
