@@ -18,6 +18,18 @@ class PropertiesPanel(QDockWidget):
     """Right-side dock for editing selected item properties."""
 
     property_changed = pyqtSignal()
+    send_to_front_requested = pyqtSignal()
+    send_to_back_requested = pyqtSignal()
+    flip_h_requested = pyqtSignal()
+    flip_v_requested = pyqtSignal()
+    align_left_requested = pyqtSignal()
+    align_right_requested = pyqtSignal()
+    align_center_h_requested = pyqtSignal()
+    align_top_requested = pyqtSignal()
+    align_bottom_requested = pyqtSignal()
+    align_center_v_requested = pyqtSignal()
+    distribute_h_requested = pyqtSignal()
+    distribute_v_requested = pyqtSignal()
 
     def __init__(self, parent=None):
         super().__init__("Properties", parent)
@@ -39,6 +51,9 @@ class PropertiesPanel(QDockWidget):
 
         self._build_transform_group()
         self._build_appearance_group()
+        self._build_layer_order_group()
+        self._build_flip_group()
+        self._build_align_group()
         self._build_text_group()
 
         # No selection label
@@ -129,6 +144,11 @@ class PropertiesPanel(QDockWidget):
         self._stroke_width.valueChanged.connect(self._on_stroke_width_changed)
         form.addRow("Stroke W:", self._stroke_width)
 
+        # Texture fill
+        self._texture_btn = QPushButton("Texture: None")
+        self._texture_btn.clicked.connect(self._on_texture_btn_clicked)
+        form.addRow("Texture:", self._texture_btn)
+
         # Opacity
         self._opacity_spin = QDoubleSpinBox()
         self._opacity_spin.setRange(0, 1.0)
@@ -139,6 +159,76 @@ class PropertiesPanel(QDockWidget):
 
         self._appearance_group.setLayout(form)
         self._layout.addWidget(self._appearance_group)
+
+    def _build_layer_order_group(self):
+        self._layer_order_group = QGroupBox("Layer Order")
+        layout = QHBoxLayout()
+
+        self._send_front_btn = QPushButton("Send to Front")
+        self._send_front_btn.clicked.connect(self.send_to_front_requested.emit)
+        layout.addWidget(self._send_front_btn)
+
+        self._send_back_btn = QPushButton("Send to Back")
+        self._send_back_btn.clicked.connect(self.send_to_back_requested.emit)
+        layout.addWidget(self._send_back_btn)
+
+        self._layer_order_group.setLayout(layout)
+        self._layout.addWidget(self._layer_order_group)
+
+    def _build_flip_group(self):
+        self._flip_group = QGroupBox("Flip")
+        layout = QHBoxLayout()
+
+        self._flip_h_btn = QPushButton("Flip Horizontal")
+        self._flip_h_btn.clicked.connect(self.flip_h_requested.emit)
+        layout.addWidget(self._flip_h_btn)
+
+        self._flip_v_btn = QPushButton("Flip Vertical")
+        self._flip_v_btn.clicked.connect(self.flip_v_requested.emit)
+        layout.addWidget(self._flip_v_btn)
+
+        self._flip_group.setLayout(layout)
+        self._layout.addWidget(self._flip_group)
+
+    def _build_align_group(self):
+        self._align_group = QGroupBox("Align")
+        layout = QVBoxLayout()
+
+        row1 = QHBoxLayout()
+        left_btn = QPushButton("Left")
+        left_btn.clicked.connect(self.align_left_requested.emit)
+        row1.addWidget(left_btn)
+        center_h_btn = QPushButton("Center")
+        center_h_btn.clicked.connect(self.align_center_h_requested.emit)
+        row1.addWidget(center_h_btn)
+        right_btn = QPushButton("Right")
+        right_btn.clicked.connect(self.align_right_requested.emit)
+        row1.addWidget(right_btn)
+        layout.addLayout(row1)
+
+        row2 = QHBoxLayout()
+        top_btn = QPushButton("Top")
+        top_btn.clicked.connect(self.align_top_requested.emit)
+        row2.addWidget(top_btn)
+        middle_btn = QPushButton("Middle")
+        middle_btn.clicked.connect(self.align_center_v_requested.emit)
+        row2.addWidget(middle_btn)
+        bottom_btn = QPushButton("Bottom")
+        bottom_btn.clicked.connect(self.align_bottom_requested.emit)
+        row2.addWidget(bottom_btn)
+        layout.addLayout(row2)
+
+        row3 = QHBoxLayout()
+        dist_h_btn = QPushButton("Distribute H")
+        dist_h_btn.clicked.connect(self.distribute_h_requested.emit)
+        row3.addWidget(dist_h_btn)
+        dist_v_btn = QPushButton("Distribute V")
+        dist_v_btn.clicked.connect(self.distribute_v_requested.emit)
+        row3.addWidget(dist_v_btn)
+        layout.addLayout(row3)
+
+        self._align_group.setLayout(layout)
+        self._layout.addWidget(self._align_group)
 
     def _build_text_group(self):
         self._text_group = QGroupBox("Text")
@@ -198,6 +288,9 @@ class PropertiesPanel(QDockWidget):
     def _set_enabled(self, enabled: bool):
         self._transform_group.setVisible(enabled)
         self._appearance_group.setVisible(enabled)
+        self._layer_order_group.setVisible(enabled)
+        self._flip_group.setVisible(enabled)
+        self._align_group.setVisible(enabled)
         self._text_group.setVisible(False)
         self._no_selection_label.setVisible(not enabled)
 
@@ -230,6 +323,14 @@ class PropertiesPanel(QDockWidget):
         self._stroke_btn.set_color(appearance_data.stroke_color)
         self._stroke_width.setValue(appearance_data.stroke_width)
         self._opacity_spin.setValue(appearance_data.fill_opacity)
+
+        # Texture
+        tex_id = appearance_data.fill_texture
+        if tex_id:
+            from app.models.texture_registry import _name_from_filename
+            self._texture_btn.setText(f"Texture: {_name_from_filename(tex_id)}")
+        else:
+            self._texture_btn.setText("Texture: None")
 
         # Text-specific
         is_text = isinstance(data, TextItemData)
@@ -313,6 +414,27 @@ class PropertiesPanel(QDockWidget):
             item.item_data.fill_opacity = value
             item.sync_from_data()
         self.property_changed.emit()
+
+    def _on_texture_btn_clicked(self):
+        if self._updating or not self._current_item:
+            return
+        from app.ui.texture_picker import TexturePicker
+        # Get current texture from first target item
+        targets = self._get_target_items()
+        current = targets[0].item_data.fill_texture if targets else ""
+        dlg = TexturePicker(current, self)
+        if dlg.exec() == TexturePicker.DialogCode.Accepted:
+            texture_id = dlg.selected_texture_id()
+            for item in targets:
+                item.item_data.fill_texture = texture_id
+                item.sync_from_data()
+            # Update button text
+            if texture_id:
+                from app.models.texture_registry import _name_from_filename
+                self._texture_btn.setText(f"Texture: {_name_from_filename(texture_id)}")
+            else:
+                self._texture_btn.setText("Texture: None")
+            self.property_changed.emit()
 
     def _on_font_changed(self, *args):
         if self._updating or not self._current_item:

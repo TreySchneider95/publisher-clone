@@ -2,7 +2,7 @@
 
 import math
 from PyQt6.QtWidgets import QGraphicsItem, QGraphicsRectItem, QMenu
-from PyQt6.QtCore import Qt, QPointF, QRectF
+from PyQt6.QtCore import Qt, QPointF, QRectF, QPoint
 from PyQt6.QtGui import QPen, QColor, QBrush, QPolygonF
 
 from app.tools.base_tool import BaseTool
@@ -42,6 +42,9 @@ class SelectTool(BaseTool):
         self._rotate_group_center = QPointF()
         # Alignment guides
         self._guide_engine = AlignmentGuideEngine()
+        # Drag threshold (prevents accidental moves from view scrolling)
+        self._drag_confirmed = False
+        self._drag_screen_start = QPoint()
         # Rubber band
         self._rubber_band_active = False
         self._rubber_band_origin = QPointF()
@@ -218,6 +221,8 @@ class SelectTool(BaseTool):
 
             self._drag_start = pos
             self._dragging = True
+            self._drag_confirmed = False
+            self._drag_screen_start = event.screenPos()
             self._guide_engine.begin_drag(scene, self._drag_items)
 
             # Show handles for single selection (including groups)
@@ -244,6 +249,14 @@ class SelectTool(BaseTool):
             return
 
         if self._dragging and self._drag_items:
+            if not self._drag_confirmed:
+                screen_delta = event.screenPos() - self._drag_screen_start
+                if abs(screen_delta.x()) < 4 and abs(screen_delta.y()) < 4:
+                    return
+                # Threshold exceeded — confirm drag and reset start to absorb
+                # any view shift (e.g. from properties panel ensureVisible)
+                self._drag_confirmed = True
+                self._drag_start = pos
             delta = pos - self._drag_start
             # Compute tentative union rect of all dragged items
             snap_cfg = get_settings().snap

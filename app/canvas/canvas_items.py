@@ -9,8 +9,8 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt, QRectF, QPointF, QLineF
 from PyQt6.QtGui import (
-    QPen, QColor, QBrush, QPainter, QPainterPath, QFont,
-    QPolygonF, QPixmap, QImage, QTransform
+    QPen, QColor, QBrush, QPainter, QPainterPath, QPainterPathStroker,
+    QFont, QPolygonF, QPixmap, QImage, QTransform
 )
 import base64
 
@@ -33,6 +33,7 @@ class PublisherItemMixin:
         self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable, not data.locked)
         self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsMovable, not data.locked)
         self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemSendsGeometryChanges, True)
+        self._apply_flip_transform()
 
     def _make_pen(self) -> QPen:
         d = self.item_data
@@ -46,11 +47,34 @@ class PublisherItemMixin:
 
     def _make_brush(self) -> QBrush:
         d = self.item_data
+        if d.fill_texture:
+            from app.models.texture_registry import load_texture
+            pixmap = load_texture(d.fill_texture)
+            if pixmap and not pixmap.isNull():
+                return QBrush(pixmap)
         if d.fill_color == "transparent":
             return QBrush(Qt.BrushStyle.NoBrush)
         color = QColor(d.fill_color)
         color.setAlphaF(d.fill_opacity)
         return QBrush(color)
+
+    def _get_flip_rect(self) -> QRectF:
+        """Return the rect to mirror around when flipping. Override in subclasses."""
+        return QRectF(0, 0, self.item_data.width, self.item_data.height)
+
+    def _apply_flip_transform(self):
+        """Apply horizontal/vertical flip transform based on item data."""
+        d = self.item_data
+        if not d.flip_h and not d.flip_v:
+            self.setTransform(QTransform())
+            return
+        r = self._get_flip_rect()
+        cx, cy = r.center().x(), r.center().y()
+        t = QTransform()
+        t.translate(cx, cy)
+        t.scale(-1 if d.flip_h else 1, -1 if d.flip_v else 1)
+        t.translate(-cx, -cy)
+        self.setTransform(t)
 
     def sync_from_data(self):
         """Update Qt item from data object."""
@@ -61,6 +85,7 @@ class PublisherItemMixin:
         self.setVisible(d.visible)
         self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable, not d.locked)
         self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsMovable, not d.locked)
+        self._apply_flip_transform()
 
     def sync_to_data(self):
         """Update data object from Qt item position."""
@@ -127,8 +152,20 @@ class PublisherLineItem(QGraphicsLineItem, PublisherItemMixin):
         self._init_publisher_item(data)
         self._apply_style()
 
+    def _get_flip_rect(self) -> QRectF:
+        d = self.item_data
+        return QRectF(QPointF(0, 0), QPointF(d.x2 - d.x, d.y2 - d.y)).normalized()
+
     def _apply_style(self):
         self.setPen(self._make_pen())
+
+    def shape(self) -> QPainterPath:
+        path = QPainterPath()
+        path.moveTo(self.line().p1())
+        path.lineTo(self.line().p2())
+        stroker = QPainterPathStroker()
+        stroker.setWidth(max(self.item_data.stroke_width, 8))
+        return stroker.createStroke(path)
 
     def sync_from_data(self):
         super().sync_from_data()
@@ -151,8 +188,20 @@ class PublisherArrowItem(QGraphicsLineItem, PublisherItemMixin):
         self._init_publisher_item(data)
         self._apply_style()
 
+    def _get_flip_rect(self) -> QRectF:
+        d = self.item_data
+        return QRectF(QPointF(0, 0), QPointF(d.x2 - d.x, d.y2 - d.y)).normalized()
+
     def _apply_style(self):
         self.setPen(self._make_pen())
+
+    def shape(self) -> QPainterPath:
+        path = QPainterPath()
+        path.moveTo(self.line().p1())
+        path.lineTo(self.line().p2())
+        stroker = QPainterPathStroker()
+        stroker.setWidth(max(self.item_data.stroke_width, 8))
+        return stroker.createStroke(path)
 
     def boundingRect(self):
         extra = self.item_data.arrow_size + self.item_data.stroke_width
@@ -204,6 +253,14 @@ class PublisherPolygonItem(QGraphicsPolygonItem, PublisherItemMixin):
         super().__init__(polygon, parent)
         self._init_publisher_item(data)
         self._apply_style()
+
+    def _get_flip_rect(self) -> QRectF:
+        d = self.item_data
+        if not d.points:
+            return QRectF()
+        xs = [p[0] for p in d.points]
+        ys = [p[1] for p in d.points]
+        return QRectF(min(xs), min(ys), max(xs) - min(xs), max(ys) - min(ys))
 
     def _apply_style(self):
         self.setPen(self._make_pen())
@@ -333,6 +390,14 @@ class PublisherFreehandItem(QGraphicsPathItem, PublisherItemMixin):
         self._init_publisher_item(data)
         self._rebuild_path()
         self._apply_style()
+
+    def _get_flip_rect(self) -> QRectF:
+        d = self.item_data
+        if not d.points:
+            return QRectF()
+        xs = [p[0] for p in d.points]
+        ys = [p[1] for p in d.points]
+        return QRectF(min(xs), min(ys), max(xs) - min(xs), max(ys) - min(ys))
 
     def _rebuild_path(self):
         d = self.item_data

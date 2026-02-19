@@ -141,11 +141,13 @@ class PageSizeDialog(QDialog):
     def _on_spin_edited(self):
         """Auto-switch to Custom when the user manually changes dimensions."""
         preset = self._preset_combo.currentData()
-        if preset is not PageSizePreset.CUSTOM and preset is not PageSizePreset.INFINITE:
+        if preset is not PageSizePreset.CUSTOM:
             idx = self._preset_combo.findText("Custom")
             self._preset_combo.blockSignals(True)
             self._preset_combo.setCurrentIndex(idx)
             self._preset_combo.blockSignals(False)
+            self._width_spin.setEnabled(True)
+            self._height_spin.setEnabled(True)
             self._portrait_radio.setEnabled(False)
             self._landscape_radio.setEnabled(False)
 

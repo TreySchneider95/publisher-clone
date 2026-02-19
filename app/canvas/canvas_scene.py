@@ -21,11 +21,20 @@ class PublisherScene(QGraphicsScene):
         self._show_grid = False
         self._grid_spacing = 18  # 0.25 inch in points
 
-        # Infinite canvas: large scene rect
-        self.setSceneRect(-_CANVAS_EXTENT, -_CANVAS_EXTENT,
-                          _CANVAS_EXTENT * 2, _CANVAS_EXTENT * 2)
+        self._update_scene_rect()
 
         self.selectionChanged.connect(self._on_selection_changed)
+
+    def _update_scene_rect(self):
+        """Set scene rect based on page size — bounded for defined pages, large for infinite."""
+        if self._is_defined_size():
+            margin = 36  # half-inch margin around page
+            self.setSceneRect(-margin, -margin,
+                              self.page_width + margin * 2,
+                              self.page_height + margin * 2)
+        else:
+            self.setSceneRect(-_CANVAS_EXTENT, -_CANVAS_EXTENT,
+                              _CANVAS_EXTENT * 2, _CANVAS_EXTENT * 2)
 
     def set_tool_manager(self, tm):
         self._tool_manager = tm
@@ -237,6 +246,44 @@ class PublisherScene(QGraphicsScene):
                 item.setPos(item.pos().x(), target - r.height() / 2)
 
         # Sync data
+        for item, _ in rects:
+            if hasattr(item, 'sync_to_data'):
+                item.sync_to_data()
+
+    def distribute_items(self, direction: str):
+        """Distribute selected items with equal gaps between edges.
+
+        direction: 'horizontal' or 'vertical'
+        Requires 3+ selected items; the outermost two stay fixed.
+        """
+        items = [i for i in self.selectedItems()
+                 if hasattr(i, 'item_data')]
+        if len(items) < 3:
+            return
+
+        rects = [(item, item.sceneBoundingRect()) for item in items]
+
+        if direction == 'horizontal':
+            rects.sort(key=lambda pair: pair[1].left())
+            total_span = rects[-1][1].right() - rects[0][1].left()
+            total_widths = sum(r.width() for _, r in rects)
+            gap = (total_span - total_widths) / (len(rects) - 1)
+            cursor = rects[0][1].right() + gap
+            for item, r in rects[1:-1]:
+                dx = item.pos().x() - r.left()
+                item.setPos(cursor + dx, item.pos().y())
+                cursor += r.width() + gap
+        else:
+            rects.sort(key=lambda pair: pair[1].top())
+            total_span = rects[-1][1].bottom() - rects[0][1].top()
+            total_heights = sum(r.height() for _, r in rects)
+            gap = (total_span - total_heights) / (len(rects) - 1)
+            cursor = rects[0][1].bottom() + gap
+            for item, r in rects[1:-1]:
+                dy = item.pos().y() - r.top()
+                item.setPos(item.pos().x(), cursor + dy)
+                cursor += r.height() + gap
+
         for item, _ in rects:
             if hasattr(item, 'sync_to_data'):
                 item.sync_to_data()
