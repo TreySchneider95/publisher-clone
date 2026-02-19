@@ -6,6 +6,8 @@ RELEASE_NOTES = {
     "1.2.0": [
         "Fix group rotation — children now orbit correctly around the group center",
         "Fix items jumping when properties panel auto-shows on selection",
+        "Shape/text/freehand preview now renders above existing objects while drawing",
+        "Fix double-click to edit text boxes from the select tool",
     ],
     "1.1.0": [
         "Texture fills for shapes (wood, marble, stone, metal, fabric, paper)",

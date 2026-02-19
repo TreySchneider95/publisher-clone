@@ -421,14 +421,26 @@ class SelectTool(BaseTool):
         if item and isinstance(item, (ResizeHandle, RotateHandle, VertexHandle)):
             return
 
-        from app.canvas.canvas_items import PublisherPolygonItem
-        if item and isinstance(item, PublisherPolygonItem):
+        from app.canvas.canvas_items import PublisherPolygonItem, PublisherTextItem
+        if item and isinstance(item, PublisherTextItem):
+            self._edit_text(item)
+        elif item and isinstance(item, PublisherPolygonItem):
             # Don't enter vertex mode for grouped polygons
             if self._find_parent_group(scene, item):
                 return
             self._enter_vertex_mode(item)
         elif self._vertex_editing:
             self._exit_vertex_mode()
+
+    def _edit_text(self, item):
+        from PyQt6.QtWidgets import QInputDialog
+        view = self.canvas.get_view()
+        text, ok = QInputDialog.getMultiLineText(
+            view, "Edit Text", "Text:", item.item_data.text
+        )
+        if ok:
+            item.item_data.text = text
+            item.sync_from_data()
 
     # --- Context menu ---
 

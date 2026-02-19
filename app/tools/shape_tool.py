@@ -70,6 +70,7 @@ class ShapeTool(BaseTool):
             self._preview_item.setPen(pen)
 
         if self._preview_item:
+            self._preview_item.setZValue(1e9)
             scene.addItem(self._preview_item)
 
     def mouse_move(self, event):
@@ -140,6 +141,7 @@ class ShapeTool(BaseTool):
             self._polygon_preview = QGraphicsPolygonItem(polygon)
             self._polygon_preview.setPen(QPen(QColor(0, 120, 215), 1, Qt.PenStyle.DashLine))
             self._polygon_preview.setBrush(QBrush(QColor(74, 144, 217, 40)))
+            self._polygon_preview.setZValue(1e9)
             scene.addItem(self._polygon_preview)
 
     def _finish_polygon(self):

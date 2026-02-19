@@ -87,6 +87,7 @@ class FreehandTool(BaseTool):
         self._remove_preview()
         self._preview_path = QGraphicsPathItem()
         self._preview_path.setPen(QPen(QColor(0, 0, 0), 2))
+        self._preview_path.setZValue(1e9)
         scene.addItem(self._preview_path)
 
     def mouse_move(self, event):
