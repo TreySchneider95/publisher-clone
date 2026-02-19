@@ -4,6 +4,7 @@ VERSION = "1.1.0"
 
 RELEASE_NOTES = {
     "1.1.0": [
+        "Texture fills for shapes (wood, marble, stone, metal, fabric, paper)",
         "Line/arrow angle snapping (hold Shift), easier selection, and copy/paste fix",
         "Constrain scrolling to page bounds for defined-size pages",
         "Page size dialog auto-switches to Custom when editing dimensions",

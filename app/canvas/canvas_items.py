@@ -47,6 +47,11 @@ class PublisherItemMixin:
 
     def _make_brush(self) -> QBrush:
         d = self.item_data
+        if d.fill_texture:
+            from app.models.texture_registry import load_texture
+            pixmap = load_texture(d.fill_texture)
+            if pixmap and not pixmap.isNull():
+                return QBrush(pixmap)
         if d.fill_color == "transparent":
             return QBrush(Qt.BrushStyle.NoBrush)
         color = QColor(d.fill_color)

@@ -31,6 +31,7 @@ class ItemData:
     # Fill and stroke
     fill_color: str = "#4A90D9"
     fill_opacity: float = 1.0
+    fill_texture: str = ""  # texture ID, empty = solid color fill
     stroke_color: str = "#000000"
     stroke_width: float = 1.0
     stroke_opacity: float = 1.0

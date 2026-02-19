@@ -144,6 +144,11 @@ class PropertiesPanel(QDockWidget):
         self._stroke_width.valueChanged.connect(self._on_stroke_width_changed)
         form.addRow("Stroke W:", self._stroke_width)
 
+        # Texture fill
+        self._texture_btn = QPushButton("Texture: None")
+        self._texture_btn.clicked.connect(self._on_texture_btn_clicked)
+        form.addRow("Texture:", self._texture_btn)
+
         # Opacity
         self._opacity_spin = QDoubleSpinBox()
         self._opacity_spin.setRange(0, 1.0)
@@ -319,6 +324,14 @@ class PropertiesPanel(QDockWidget):
         self._stroke_width.setValue(appearance_data.stroke_width)
         self._opacity_spin.setValue(appearance_data.fill_opacity)
 
+        # Texture
+        tex_id = appearance_data.fill_texture
+        if tex_id:
+            from app.models.texture_registry import _name_from_filename
+            self._texture_btn.setText(f"Texture: {_name_from_filename(tex_id)}")
+        else:
+            self._texture_btn.setText("Texture: None")
+
         # Text-specific
         is_text = isinstance(data, TextItemData)
         self._text_group.setVisible(is_text)
@@ -401,6 +414,27 @@ class PropertiesPanel(QDockWidget):
             item.item_data.fill_opacity = value
             item.sync_from_data()
         self.property_changed.emit()
+
+    def _on_texture_btn_clicked(self):
+        if self._updating or not self._current_item:
+            return
+        from app.ui.texture_picker import TexturePicker
+        # Get current texture from first target item
+        targets = self._get_target_items()
+        current = targets[0].item_data.fill_texture if targets else ""
+        dlg = TexturePicker(current, self)
+        if dlg.exec() == TexturePicker.DialogCode.Accepted:
+            texture_id = dlg.selected_texture_id()
+            for item in targets:
+                item.item_data.fill_texture = texture_id
+                item.sync_from_data()
+            # Update button text
+            if texture_id:
+                from app.models.texture_registry import _name_from_filename
+                self._texture_btn.setText(f"Texture: {_name_from_filename(texture_id)}")
+            else:
+                self._texture_btn.setText("Texture: None")
+            self.property_changed.emit()
 
     def _on_font_changed(self, *args):
         if self._updating or not self._current_item:
