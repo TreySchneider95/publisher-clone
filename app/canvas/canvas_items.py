@@ -429,6 +429,7 @@ class PublisherGroupItem(QGraphicsRectItem, PublisherItemMixin):
 
     def __init__(self, data: GroupItemData, parent=None):
         super().__init__(0, 0, data.width, data.height, parent)
+        self.setTransformOriginPoint(self.rect().center())
         self._init_publisher_item(data)
         self.setPen(QPen(Qt.PenStyle.NoPen))
         self.setBrush(QBrush(Qt.BrushStyle.NoBrush))
@@ -472,11 +473,13 @@ class PublisherGroupItem(QGraphicsRectItem, PublisherItemMixin):
         self.item_data.height = rect.height()
         self.setPos(rect.x(), rect.y())
         self.setRect(0, 0, rect.width(), rect.height())
+        self.setTransformOriginPoint(self.rect().center())
 
     def sync_from_data(self):
         super().sync_from_data()
         d = self.item_data
         self.setRect(0, 0, d.width, d.height)
+        self.setTransformOriginPoint(self.rect().center())
 
     def itemChange(self, change, value):
         if change == QGraphicsItem.GraphicsItemChange.ItemPositionHasChanged:

@@ -1,8 +1,12 @@
 """Single source of truth for application version and release notes."""
 
-VERSION = "1.1.0"
+VERSION = "1.2.0"
 
 RELEASE_NOTES = {
+    "1.2.0": [
+        "Fix group rotation — children now orbit correctly around the group center",
+        "Fix items jumping when properties panel auto-shows on selection",
+    ],
     "1.1.0": [
         "Texture fills for shapes (wood, marble, stone, metal, fabric, paper)",
         "Line/arrow angle snapping (hold Shift), easier selection, and copy/paste fix",

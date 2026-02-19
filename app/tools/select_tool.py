@@ -39,7 +39,7 @@ class SelectTool(BaseTool):
         # Group child tracking for resize/rotate
         self._group_child_starts: list = []
         self._rotate_child_starts: list = []  # (child, start_pos, start_rotation)
-        self._rotate_group_center = QPointF()
+        self._rotate_center = QPointF()  # fixed center of rotation for drag
         # Alignment guides
         self._guide_engine = AlignmentGuideEngine()
         # Drag threshold (prevents accidental moves from view scrolling)
@@ -153,11 +153,12 @@ class SelectTool(BaseTool):
                 if handle_type == HandleType.ROTATE:
                     self._rotating = True
                     self._start_rotation = target.rotation()
+                    # Save the rotation center so it stays fixed during drag
+                    self._rotate_center = target.mapToScene(
+                        target.boundingRect().center()
+                    )
                     # For groups, save child positions/rotations for orbital rotation
                     if self._is_group_item(target):
-                        self._rotate_group_center = target.mapToScene(
-                            target.boundingRect().center()
-                        )
                         self._rotate_child_starts = []
                         for child in target.get_child_items(scene):
                             self._rotate_child_starts.append(
@@ -675,7 +676,8 @@ class SelectTool(BaseTool):
         if not target:
             return
 
-        center = target.mapToScene(target.boundingRect().center())
+        # Use the fixed center saved at drag start so it doesn't drift
+        center = self._rotate_center
         angle_start = math.atan2(
             self._drag_start.y() - center.y(),
             self._drag_start.x() - center.x()
@@ -696,26 +698,17 @@ class SelectTool(BaseTool):
             delta_rad = math.radians(delta_angle)
             cos_a = math.cos(delta_rad)
             sin_a = math.sin(delta_rad)
-            gc = self._rotate_group_center
+            gc = self._rotate_center
             for child, start_pos, start_rot in self._rotate_child_starts:
-                # Get the child's center in scene coords at start
-                child_br = child.boundingRect()
-                child_center_local = child_br.center()
-                # Start position is top-left; compute scene center
-                cx = start_pos.x() + child_center_local.x()
-                cy = start_pos.y() + child_center_local.y()
-                # Rotate this center point around the group center
-                dx = cx - gc.x()
-                dy = cy - gc.y()
-                new_cx = gc.x() + dx * cos_a - dy * sin_a
-                new_cy = gc.y() + dx * sin_a + dy * cos_a
-                # Convert back to top-left position
-                new_x = new_cx - child_center_local.x()
-                new_y = new_cy - child_center_local.y()
+                # Orbit pos() directly around group center
+                # (the bounding-rect-center terms cancel algebraically)
+                dx = start_pos.x() - gc.x()
+                dy = start_pos.y() - gc.y()
+                new_x = gc.x() + dx * cos_a - dy * sin_a
+                new_y = gc.y() + dx * sin_a + dy * cos_a
                 child.setPos(new_x, new_y)
                 child.item_data.x = new_x
                 child.item_data.y = new_y
-                # Also rotate the child itself
                 child.setRotation(start_rot + delta_angle)
                 child.item_data.rotation = start_rot + delta_angle
 
