@@ -485,6 +485,8 @@ class SelectTool(BaseTool):
         menu.addAction("Paste", mw._edit_paste)
         if selected:
             menu.addAction("Delete", mw._edit_delete)
+            menu.addAction("Duplicate Along Line...",
+                           lambda: self._duplicate_along_line(scene, selected))
 
         # Group / Ungroup
         if selected:
@@ -518,6 +520,73 @@ class SelectTool(BaseTool):
         self.canvas.push_command(cmd)
         if self._handle_group:
             self._handle_group.detach()
+
+    # --- Duplicate Along Line ---
+
+    def _duplicate_along_line(self, scene, items):
+        """Duplicate selected items N times at even spacing along a line."""
+        import copy
+        from app.ui.duplicate_array_dialog import DuplicateArrayDialog
+        from app.canvas.canvas_items import create_item_from_data, PublisherGroupItem
+        from app.commands.item_commands import AddItemCommand
+        from app.models.items import _new_id, GroupItemData
+
+        # Get current display unit from properties panel
+        unit = self.canvas._mw.properties_panel._unit
+
+        dlg = DuplicateArrayDialog(unit, self.canvas.get_view())
+        if dlg.exec() != DuplicateArrayDialog.DialogCode.Accepted:
+            return
+
+        direction, count, spacing_pts = dlg.result_values()
+
+        self.canvas.begin_macro("Duplicate Along Line")
+
+        # Collect item data for all selected items (including group children)
+        source_data = []
+        for item in items:
+            source_data.append(item.item_data)
+            if isinstance(item, PublisherGroupItem):
+                for child in item.get_child_items(scene):
+                    if child.item_data not in source_data:
+                        source_data.append(child.item_data)
+
+        # Compute bounding rect of the entire selection to get its extent
+        from PyQt6.QtCore import QRectF as _QRectF
+        bounds = items[0].sceneBoundingRect()
+        for item in items[1:]:
+            bounds = bounds.united(item.sceneBoundingRect())
+
+        for i in range(1, count + 1):
+            if direction == "horizontal":
+                step = bounds.width() + spacing_pts
+                off_x, off_y = step * i, 0
+            else:
+                step = bounds.height() + spacing_pts
+                off_x, off_y = 0, step * i
+
+            # Build old->new ID map for this copy batch
+            old_to_new = {}
+            for data in source_data:
+                old_to_new[data.id] = _new_id()
+
+            for data in source_data:
+                new_data = copy.deepcopy(data)
+                new_data.id = old_to_new[data.id]
+                new_data.x += off_x
+                new_data.y += off_y
+                if hasattr(new_data, 'x2'):
+                    new_data.x2 += off_x
+                    new_data.y2 += off_y
+                if isinstance(new_data, GroupItemData):
+                    new_data.child_ids = [
+                        old_to_new.get(cid, cid) for cid in new_data.child_ids
+                    ]
+                new_item = create_item_from_data(new_data)
+                cmd = AddItemCommand(scene, new_item, "Duplicate Along Line")
+                self.canvas.push_command(cmd)
+
+        self.canvas.end_macro()
 
     # --- Rubber band ---
 
