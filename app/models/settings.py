@@ -40,6 +40,7 @@ class AppSettings:
     """Top-level application settings."""
     snap: SnapSettings = field(default_factory=SnapSettings)
     defaults: DefaultColorSettings = field(default_factory=DefaultColorSettings)
+    arrow_key_step: float = 1.0  # points to move per arrow key press
 
     _path: Path = field(default_factory=lambda: Path.home() / ".publisher_clone" / "settings.json",
                         repr=False, compare=False)
@@ -62,7 +63,8 @@ class AppSettings:
                 guides=guides,
             )
             defaults = DefaultColorSettings(**_filter_fields(DefaultColorSettings, raw.get('defaults', {})))
-            return cls(snap=snap, defaults=defaults)
+            arrow_key_step = float(raw.get('arrow_key_step', 1.0))
+            return cls(snap=snap, defaults=defaults, arrow_key_step=arrow_key_step)
         except Exception:
             return cls()
 

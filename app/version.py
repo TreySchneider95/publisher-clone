@@ -7,6 +7,7 @@ RELEASE_NOTES = {
         "Duplicate Along Line — evenly space copies horizontally or vertically via right-click",
         "Fix group rotation — children now orbit correctly around the group center with proper undo/redo",
         "Add Rotate 90° button in properties panel (works for items, lines, and groups)",
+        "Arrow keys move selected items; step size configurable in Preferences",
         "Fix items jumping when properties panel auto-shows on selection",
         "Shape/text/freehand preview now renders above existing objects while drawing",
         "Fix double-click to edit text boxes from the select tool",

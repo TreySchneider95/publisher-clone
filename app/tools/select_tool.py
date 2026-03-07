@@ -982,6 +982,11 @@ class SelectTool(BaseTool):
         if event.key() == Qt.Key.Key_Delete or event.key() == Qt.Key.Key_Backspace:
             self._delete_selected()
             event.accept()
+        elif event.key() in (
+            Qt.Key.Key_Left, Qt.Key.Key_Right, Qt.Key.Key_Up, Qt.Key.Key_Down
+        ):
+            self._arrow_move(event.key())
+            event.accept()
         elif event.key() == Qt.Key.Key_Escape:
             if self._vertex_editing:
                 self._exit_vertex_mode()
@@ -995,6 +1000,57 @@ class SelectTool(BaseTool):
             event.accept()
         else:
             event.ignore()
+
+    def _arrow_move(self, key):
+        """Move all selected items by the configured arrow key step."""
+        scene = self.canvas.get_scene()
+        if not scene:
+            return
+        selected = [
+            i for i in scene.selectedItems()
+            if hasattr(i, 'item_data') and not i.item_data.locked
+        ]
+        if not selected:
+            return
+
+        from app.models.settings import get_settings
+        step = get_settings().arrow_key_step
+        dx = dy = 0.0
+        if key == Qt.Key.Key_Left:
+            dx = -step
+        elif key == Qt.Key.Key_Right:
+            dx = step
+        elif key == Qt.Key.Key_Up:
+            dy = -step
+        else:
+            dy = step
+
+        # For groups, also move their children so the group stays coherent
+        from app.canvas.canvas_items import PublisherGroupItem
+        all_items = []
+        for item in selected:
+            if item not in all_items:
+                all_items.append(item)
+            if isinstance(item, PublisherGroupItem):
+                for child in item.get_child_items(scene):
+                    if child not in all_items:
+                        all_items.append(child)
+
+        use_macro = len(all_items) > 1
+        if use_macro:
+            self.canvas.begin_macro("Move Items")
+        for item in all_items:
+            old_pos = item.pos()
+            new_pos = old_pos + QPointF(dx, dy)
+            item.setPos(new_pos)
+            item.item_data.x = new_pos.x()
+            item.item_data.y = new_pos.y()
+            self.canvas.push_command(MoveItemCommand(item, old_pos, new_pos))
+        if use_macro:
+            self.canvas.end_macro()
+
+        if self._handle_group and self._handle_group.target:
+            self._handle_group.update_positions()
 
     def _delete_selected(self):
         if self._vertex_editing:

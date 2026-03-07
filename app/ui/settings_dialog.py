@@ -52,6 +52,22 @@ class SettingsDialog(QDialog):
 
         layout.addWidget(snap_group)
 
+        # --- Arrow key movement section ---
+        arrow_group = QGroupBox("Arrow Key Movement")
+        arrow_layout = QFormLayout(arrow_group)
+
+        self._arrow_step_spin = QDoubleSpinBox()
+        self._arrow_step_spin.setRange(0.1, 144.0)
+        self._arrow_step_spin.setDecimals(1)
+        self._arrow_step_spin.setSingleStep(1.0)
+        self._arrow_step_spin.setSuffix(" pt")
+        self._arrow_step_spin.setToolTip(
+            "How far selected items move per arrow key press (in points; 72 pt = 1 inch)"
+        )
+        arrow_layout.addRow("Step size:", self._arrow_step_spin)
+
+        layout.addWidget(arrow_group)
+
         # --- Default colors section ---
         color_group = QGroupBox("Default Shape Colors")
         color_layout = QFormLayout(color_group)
@@ -90,12 +106,14 @@ class SettingsDialog(QDialog):
         self._cb_edges.setChecked(s.snap.guides.edges)
         self._cb_thirds.setChecked(s.snap.guides.thirds)
         self._cb_quarters.setChecked(s.snap.guides.quarters)
+        self._arrow_step_spin.setValue(s.arrow_key_step)
         self._fill_btn.set_color(s.defaults.fill_color)
         self._stroke_btn.set_color(s.defaults.stroke_color)
         self._stroke_spin.setValue(s.defaults.stroke_width)
 
     def _save_and_accept(self):
         s = self._settings
+        s.arrow_key_step = self._arrow_step_spin.value()
         s.snap.snap_distance = self._snap_slider.value()
         s.snap.guides.center = self._cb_center.isChecked()
         s.snap.guides.edges = self._cb_edges.isChecked()
