@@ -55,3 +55,22 @@ Documents save as `.pubd` files (JSON). `dataclasses.asdict()` serializes ItemDa
 - Unit conversions in `app/models/enums.py` (points_to_unit, unit_to_points)
 - `scene.get_publisher_items()` filters out non-data items (handles, decorations)
 - Properties panel updates come from `selectionChanged` -> `_on_selection_changed` with a reentrance guard (`_in_selection_change`)
+
+## Agent Workflow Rules
+
+These rules apply to every Claude agent working in this repository. They are mandatory and must be followed after completing any task.
+
+### 1. Update `app/version.py`
+
+After finishing a task, add a bullet describing what you did to the `RELEASE_NOTES` entry for the current version (the version string assigned to `VERSION`). Keep the description concise — one line, matching the style of existing entries. Do not bump the version number; only add to the notes list.
+
+### 2. Stage and Commit All Changes
+
+After updating `app/version.py`, stage every changed file and commit with a descriptive message summarizing the task. The user manages pushing; do not push.
+
+```bash
+git add -A
+git commit -m "Short description of what was done"
+```
+
+Do not skip this step. Every completed task must end with a commit.
