@@ -241,6 +241,7 @@ class MainWindow(QMainWindow):
         self.properties_panel.send_to_back_requested.connect(self._send_to_back)
         self.properties_panel.flip_h_requested.connect(lambda: self._flip_item("h"))
         self.properties_panel.flip_v_requested.connect(lambda: self._flip_item("v"))
+        self.properties_panel.rotate_90_requested.connect(self._rotate_90_item)
         self.properties_panel.align_left_requested.connect(lambda: self._align('left'))
         self.properties_panel.align_right_requested.connect(lambda: self._align('right'))
         self.properties_panel.align_center_h_requested.connect(lambda: self._align('center_h'))
@@ -464,6 +465,12 @@ class MainWindow(QMainWindow):
         """Refresh the current page thumbnail after any command push/undo/redo."""
         if self.current_scene is not None and 0 <= self.current_page_index < len(self.scenes):
             self.pages_panel.refresh_thumbnail(self.current_page_index, self.current_scene)
+        # Also refresh the properties panel so X/Y/size stay in sync
+        if self.current_scene and self.properties_panel.isVisible():
+            selected = [i for i in self.current_scene.selectedItems()
+                        if hasattr(i, 'item_data')]
+            if selected:
+                self.properties_panel.update_from_item(selected[0])
 
     # --- View toggles ---
 
@@ -542,9 +549,7 @@ class MainWindow(QMainWindow):
             new_data.id = old_to_new[data.id]
             new_data.x += 20
             new_data.y += 20
-            if hasattr(new_data, 'x2'):
-                new_data.x2 += 20
-                new_data.y2 += 20
+            # x2/y2 on line/arrow are relative offsets — do not shift them
             # Remap child_ids for groups
             if isinstance(new_data, GroupItemData):
                 new_data.child_ids = [
@@ -679,6 +684,71 @@ class MainWindow(QMainWindow):
             cmd = FlipItemCommand(item, axis,
                                   f"Flip {'Horizontal' if axis == 'h' else 'Vertical'}")
             self.command_stack.push(cmd)
+        self.document.mark_dirty()
+
+    def _rotate_90_item(self):
+        """Rotate selected item(s) 90° clockwise."""
+        if not self.current_scene:
+            return
+        import math
+        from app.commands.item_commands import RotateItemCommand, ResizeLineCommand
+        from app.commands.group_commands import UpdateGroupBoundsCommand
+        from app.canvas.canvas_items import PublisherGroupItem, PublisherLineItem, PublisherArrowItem
+        selected = [i for i in self.current_scene.selectedItems() if hasattr(i, 'item_data')]
+        if not selected:
+            return
+        item = selected[0]
+
+        if isinstance(item, PublisherGroupItem):
+            # Orbit each child 90° CW around the group's bounding-box center
+            children = item.get_child_items(self.current_scene)
+            if not children:
+                return
+            d = item.item_data
+            gc_x = d.x + d.width / 2
+            gc_y = d.y + d.height / 2
+            from app.commands.group_commands import UpdateGroupBoundsCommand
+            self.command_stack.stack.beginMacro("Rotate Group 90°")
+            for child in children:
+                cd = child.item_data
+                # Pivot child's scene-center 90° CW around group center
+                cx = cd.x + cd.width / 2
+                cy = cd.y + cd.height / 2
+                dx, dy = cx - gc_x, cy - gc_y
+                new_cx = gc_x + dy
+                new_cy = gc_y - dx
+                new_x = new_cx - cd.width / 2
+                new_y = new_cy - cd.height / 2
+                from app.commands.item_commands import MoveItemCommand, RotateItemCommand
+                if (cd.x, cd.y) != (new_x, new_y):
+                    from PyQt6.QtCore import QPointF
+                    self.command_stack.push(
+                        MoveItemCommand(child, QPointF(cd.x, cd.y), QPointF(new_x, new_y))
+                    )
+                old_rot = cd.rotation
+                self.command_stack.push(
+                    RotateItemCommand(child, old_rot, old_rot + 90)
+                )
+            self.command_stack.push(UpdateGroupBoundsCommand(item, self.current_scene))
+            self.command_stack.stack.endMacro()
+
+        elif isinstance(item, (PublisherLineItem, PublisherArrowItem)):
+            # Rotate the relative endpoint 90° CW: new_dx=dy, new_dy=-dx
+            d = item.item_data
+            old_x2, old_y2 = d.x2, d.y2
+            new_x2 = old_y2
+            new_y2 = -old_x2
+            cmd = ResizeLineCommand(
+                item, d.x, d.y, old_x2, old_y2,
+                d.x, d.y, new_x2, new_y2, "Rotate Line 90°"
+            )
+            self.command_stack.push(cmd)
+
+        else:
+            old_rot = item.item_data.rotation
+            cmd = RotateItemCommand(item, old_rot, old_rot + 90, "Rotate 90°")
+            self.command_stack.push(cmd)
+
         self.document.mark_dirty()
 
     # --- Custom shape library ---

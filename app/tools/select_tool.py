@@ -13,7 +13,7 @@ from app.canvas.selection_handles import (
 from app.canvas.alignment_guides import AlignmentGuideEngine
 from app.commands.item_commands import (
     MoveItemCommand, ResizeItemCommand, RotateItemCommand,
-    ResizePointsItemCommand, EditVertexCommand,
+    ResizePointsItemCommand, EditVertexCommand, ResizeLineCommand,
 )
 from app.models.settings import get_settings
 
@@ -39,7 +39,7 @@ class SelectTool(BaseTool):
         # Group child tracking for resize/rotate
         self._group_child_starts: list = []
         self._rotate_child_starts: list = []  # (child, start_pos, start_rotation)
-        self._rotate_group_center = QPointF()
+        self._rotate_center = QPointF()  # fixed center of rotation for drag
         # Alignment guides
         self._guide_engine = AlignmentGuideEngine()
         # Drag threshold (prevents accidental moves from view scrolling)
@@ -55,6 +55,8 @@ class SelectTool(BaseTool):
         self._vertex_handles: VertexHandleGroup | None = None
         self._vertex_drag_index = -1
         self._vertex_start_state = None  # (x, y, w, h, points)
+        # Line endpoint resize state
+        self._line_resize_start = None  # (old_x, old_y, old_x2, old_y2)
 
     def activate(self):
         self._ensure_handle_group()
@@ -97,6 +99,11 @@ class SelectTool(BaseTool):
         return (hasattr(item, 'item_data')
                 and hasattr(item.item_data, 'points')
                 and isinstance(item.item_data.points, list))
+
+    def _is_line_item(self, item):
+        """Check if item is a line or arrow (uses endpoint handles)."""
+        from app.canvas.canvas_items import PublisherLineItem, PublisherArrowItem
+        return isinstance(item, (PublisherLineItem, PublisherArrowItem))
 
     # --- Mouse events ---
 
@@ -153,16 +160,22 @@ class SelectTool(BaseTool):
                 if handle_type == HandleType.ROTATE:
                     self._rotating = True
                     self._start_rotation = target.rotation()
+                    # Save the rotation center so it stays fixed during drag
+                    self._rotate_center = target.mapToScene(
+                        target.boundingRect().center()
+                    )
                     # For groups, save child positions/rotations for orbital rotation
                     if self._is_group_item(target):
-                        self._rotate_group_center = target.mapToScene(
-                            target.boundingRect().center()
-                        )
                         self._rotate_child_starts = []
                         for child in target.get_child_items(scene):
                             self._rotate_child_starts.append(
                                 (child, QPointF(child.pos()), child.rotation())
                             )
+                elif handle_type in (HandleType.ENDPOINT_1, HandleType.ENDPOINT_2):
+                    # Line/arrow endpoint drag
+                    self._resizing = True
+                    d = target.item_data
+                    self._line_resize_start = (d.x, d.y, d.x2, d.y2)
                 else:
                     self._resizing = True
                     # For groups, save child start positions for proportional scaling
@@ -283,7 +296,11 @@ class SelectTool(BaseTool):
                 self._handle_group.update_positions()
 
         elif self._resizing and self._handle_group and self._handle_group.target:
-            self._do_resize(pos)
+            target = self._handle_group.target
+            if self._is_line_item(target):
+                self._do_line_resize(pos, event.modifiers())
+            else:
+                self._do_resize(pos)
 
         elif self._rotating and self._handle_group and self._handle_group.target:
             self._do_rotate(pos)
@@ -331,7 +348,21 @@ class SelectTool(BaseTool):
             target = self._handle_group.target
             new_pos = target.pos()
 
-            if self._item_start_points is not None:
+            if self._is_line_item(target) and self._line_resize_start is not None:
+                old_x, old_y, old_x2, old_y2 = self._line_resize_start
+                d = target.item_data
+                if (old_x, old_y, old_x2, old_y2) != (d.x, d.y, d.x2, d.y2):
+                    cmd = ResizeLineCommand(
+                        target, old_x, old_y, old_x2, old_y2,
+                        d.x, d.y, d.x2, d.y2
+                    )
+                    self.canvas.push_command(cmd)
+                self._resizing = False
+                self._active_handle = None
+                self._line_resize_start = None
+                self._handle_group.update_positions()
+
+            elif self._item_start_points is not None:
                 # Points-based item (polygon/freehand)
                 new_points = list(target.item_data.points)
                 if self._item_start_points != new_points or self._item_start_pos != new_pos:
@@ -379,27 +410,38 @@ class SelectTool(BaseTool):
 
         elif self._rotating and self._handle_group and self._handle_group.target:
             target = self._handle_group.target
-            new_rotation = target.rotation()
             has_children = self._is_group_item(target) and self._rotate_child_starts
-            if self._start_rotation != new_rotation:
-                if has_children:
+            if has_children:
+                # Commit child moves/rotations; UpdateGroupBoundsCommand pushed LAST so
+                # on undo (LIFO) it fires first and restores stored bounds, then children
+                # move back; on redo it fires last and recomputes from moved children.
+                changed = [
+                    (child, sp, sr)
+                    for child, sp, sr in self._rotate_child_starts
+                    if child.pos() != sp or child.rotation() != sr
+                ]
+                if changed:
+                    from app.commands.group_commands import UpdateGroupBoundsCommand
                     self.canvas.begin_macro("Rotate Group")
-                cmd = RotateItemCommand(target, self._start_rotation, new_rotation)
-                self.canvas.push_command(cmd)
-                if has_children:
                     for child, start_pos, start_rot in self._rotate_child_starts:
                         child_new_pos = child.pos()
                         child_new_rot = child.rotation()
-                        if start_pos != child_new_pos:
-                            move_cmd = MoveItemCommand(child, start_pos, child_new_pos)
-                            self.canvas.push_command(move_cmd)
-                        if start_rot != child_new_rot:
-                            rot_cmd = RotateItemCommand(child, start_rot, child_new_rot)
-                            self.canvas.push_command(rot_cmd)
+                        if child_new_pos != start_pos:
+                            self.canvas.push_command(
+                                MoveItemCommand(child, start_pos, child_new_pos)
+                            )
+                        if child_new_rot != start_rot:
+                            self.canvas.push_command(
+                                RotateItemCommand(child, start_rot, child_new_rot)
+                            )
+                    self.canvas.push_command(UpdateGroupBoundsCommand(target, scene))
                     self.canvas.end_macro()
-            # Update group bounds after rotation
-            if has_children and scene:
-                target.update_bounds_from_children(scene)
+            else:
+                new_rotation = target.rotation()
+                if self._start_rotation != new_rotation:
+                    self.canvas.push_command(
+                        RotateItemCommand(target, self._start_rotation, new_rotation)
+                    )
             self._rotating = False
             self._active_handle = None
             self._rotate_child_starts.clear()
@@ -420,14 +462,26 @@ class SelectTool(BaseTool):
         if item and isinstance(item, (ResizeHandle, RotateHandle, VertexHandle)):
             return
 
-        from app.canvas.canvas_items import PublisherPolygonItem
-        if item and isinstance(item, PublisherPolygonItem):
+        from app.canvas.canvas_items import PublisherPolygonItem, PublisherTextItem
+        if item and isinstance(item, PublisherTextItem):
+            self._edit_text(item)
+        elif item and isinstance(item, PublisherPolygonItem):
             # Don't enter vertex mode for grouped polygons
             if self._find_parent_group(scene, item):
                 return
             self._enter_vertex_mode(item)
         elif self._vertex_editing:
             self._exit_vertex_mode()
+
+    def _edit_text(self, item):
+        from PyQt6.QtWidgets import QInputDialog
+        view = self.canvas.get_view()
+        text, ok = QInputDialog.getMultiLineText(
+            view, "Edit Text", "Text:", item.item_data.text
+        )
+        if ok:
+            item.item_data.text = text
+            item.sync_from_data()
 
     # --- Context menu ---
 
@@ -472,6 +526,8 @@ class SelectTool(BaseTool):
         menu.addAction("Paste", mw._edit_paste)
         if selected:
             menu.addAction("Delete", mw._edit_delete)
+            menu.addAction("Duplicate Along Line...",
+                           lambda: self._duplicate_along_line(scene, selected))
 
         # Group / Ungroup
         if selected:
@@ -505,6 +561,71 @@ class SelectTool(BaseTool):
         self.canvas.push_command(cmd)
         if self._handle_group:
             self._handle_group.detach()
+
+    # --- Duplicate Along Line ---
+
+    def _duplicate_along_line(self, scene, items):
+        """Duplicate selected items N times at even spacing along a line."""
+        import copy
+        from app.ui.duplicate_array_dialog import DuplicateArrayDialog
+        from app.canvas.canvas_items import create_item_from_data, PublisherGroupItem
+        from app.commands.item_commands import AddItemCommand
+        from app.models.items import _new_id, GroupItemData
+
+        # Get current display unit from properties panel
+        unit = self.canvas._mw.properties_panel._unit
+
+        dlg = DuplicateArrayDialog(unit, self.canvas.get_view())
+        if dlg.exec() != DuplicateArrayDialog.DialogCode.Accepted:
+            return
+
+        direction, count, spacing_pts = dlg.result_values()
+
+        self.canvas.begin_macro("Duplicate Along Line")
+
+        # Collect item data for all selected items (including group children)
+        source_data = []
+        for item in items:
+            source_data.append(item.item_data)
+            if isinstance(item, PublisherGroupItem):
+                for child in item.get_child_items(scene):
+                    if child.item_data not in source_data:
+                        source_data.append(child.item_data)
+
+        # Compute bounding rect of the entire selection to get its extent
+        from PyQt6.QtCore import QRectF as _QRectF
+        bounds = items[0].sceneBoundingRect()
+        for item in items[1:]:
+            bounds = bounds.united(item.sceneBoundingRect())
+
+        for i in range(1, count + 1):
+            if direction == "horizontal":
+                step = bounds.width() + spacing_pts
+                off_x, off_y = step * i, 0
+            else:
+                step = bounds.height() + spacing_pts
+                off_x, off_y = 0, step * i
+
+            # Build old->new ID map for this copy batch
+            old_to_new = {}
+            for data in source_data:
+                old_to_new[data.id] = _new_id()
+
+            for data in source_data:
+                new_data = copy.deepcopy(data)
+                new_data.id = old_to_new[data.id]
+                new_data.x += off_x
+                new_data.y += off_y
+                # x2/y2 on line/arrow are relative offsets — do not shift them
+                if isinstance(new_data, GroupItemData):
+                    new_data.child_ids = [
+                        old_to_new.get(cid, cid) for cid in new_data.child_ids
+                    ]
+                new_item = create_item_from_data(new_data)
+                cmd = AddItemCommand(scene, new_item, "Duplicate Along Line")
+                self.canvas.push_command(cmd)
+
+        self.canvas.end_macro()
 
     # --- Rubber band ---
 
@@ -577,6 +698,57 @@ class SelectTool(BaseTool):
         self._rubber_band_active = False
 
     # --- Resize / Rotate ---
+
+    def _do_line_resize(self, pos: QPointF, modifiers=None):
+        """Drag a line endpoint. ENDPOINT_1 moves the start; ENDPOINT_2 moves the end.
+
+        Hold Shift to snap the angle to 45-degree increments.
+        """
+        target = self._handle_group.target
+        if not target or self._line_resize_start is None:
+            return
+        ht = self._active_handle
+        old_x, old_y, old_x2, old_y2 = self._line_resize_start
+
+        if ht == HandleType.ENDPOINT_1:
+            # Keep p2 fixed in scene space; move p1 to pos
+            abs_end_x = old_x + old_x2
+            abs_end_y = old_y + old_y2
+            new_x, new_y = pos.x(), pos.y()
+            new_x2 = abs_end_x - new_x
+            new_y2 = abs_end_y - new_y
+            if modifiers and (modifiers & Qt.KeyboardModifier.ShiftModifier):
+                new_x2, new_y2 = self._snap_line_angle(new_x2, new_y2)
+                new_x = abs_end_x - new_x2
+                new_y = abs_end_y - new_y2
+            target.setPos(new_x, new_y)
+            target.item_data.x = new_x
+            target.item_data.y = new_y
+            target.item_data.x2 = new_x2
+            target.item_data.y2 = new_y2
+            target.setLine(0, 0, new_x2, new_y2)
+        else:  # ENDPOINT_2
+            # Keep p1 (item origin) fixed; move p2
+            cur_pos = target.pos()
+            new_x2 = pos.x() - cur_pos.x()
+            new_y2 = pos.y() - cur_pos.y()
+            if modifiers and (modifiers & Qt.KeyboardModifier.ShiftModifier):
+                new_x2, new_y2 = self._snap_line_angle(new_x2, new_y2)
+            target.item_data.x2 = new_x2
+            target.item_data.y2 = new_y2
+            target.setLine(0, 0, new_x2, new_y2)
+
+        self._handle_group.update_positions()
+
+    def _snap_line_angle(self, dx: float, dy: float) -> tuple:
+        """Snap (dx, dy) to the nearest 45-degree angle, preserving length."""
+        length = math.hypot(dx, dy)
+        if length == 0:
+            return dx, dy
+        angle = math.atan2(dy, dx)
+        snap_rad = math.radians(45)
+        angle = round(angle / snap_rad) * snap_rad
+        return length * math.cos(angle), length * math.sin(angle)
 
     def _do_resize(self, pos: QPointF):
         target = self._handle_group.target
@@ -675,7 +847,8 @@ class SelectTool(BaseTool):
         if not target:
             return
 
-        center = target.mapToScene(target.boundingRect().center())
+        # Use the fixed center saved at drag start so it doesn't drift
+        center = self._rotate_center
         angle_start = math.atan2(
             self._drag_start.y() - center.y(),
             self._drag_start.x() - center.x()
@@ -685,39 +858,32 @@ class SelectTool(BaseTool):
             pos.x() - center.x()
         )
         delta_angle = math.degrees(angle_now - angle_start)
-        new_rotation = self._start_rotation + delta_angle
 
-        target.setRotation(new_rotation)
-        if hasattr(target, 'item_data'):
-            target.item_data.rotation = new_rotation
-
-        # For groups, rotate each child around the group center
         if self._is_group_item(target) and self._rotate_child_starts:
+            # Groups must never carry Qt rotation — orbit children around the fixed center
             delta_rad = math.radians(delta_angle)
             cos_a = math.cos(delta_rad)
             sin_a = math.sin(delta_rad)
-            gc = self._rotate_group_center
+            gc = self._rotate_center
             for child, start_pos, start_rot in self._rotate_child_starts:
-                # Get the child's center in scene coords at start
-                child_br = child.boundingRect()
-                child_center_local = child_br.center()
-                # Start position is top-left; compute scene center
-                cx = start_pos.x() + child_center_local.x()
-                cy = start_pos.y() + child_center_local.y()
-                # Rotate this center point around the group center
-                dx = cx - gc.x()
-                dy = cy - gc.y()
-                new_cx = gc.x() + dx * cos_a - dy * sin_a
-                new_cy = gc.y() + dx * sin_a + dy * cos_a
-                # Convert back to top-left position
-                new_x = new_cx - child_center_local.x()
-                new_y = new_cy - child_center_local.y()
+                dx = start_pos.x() - gc.x()
+                dy = start_pos.y() - gc.y()
+                new_x = gc.x() + dx * cos_a - dy * sin_a
+                new_y = gc.y() + dx * sin_a + dy * cos_a
                 child.setPos(new_x, new_y)
                 child.item_data.x = new_x
                 child.item_data.y = new_y
-                # Also rotate the child itself
                 child.setRotation(start_rot + delta_angle)
                 child.item_data.rotation = start_rot + delta_angle
+            # Refit the group bounding box to the rotated children
+            scene = self.canvas.get_scene()
+            if scene:
+                target.update_bounds_from_children(scene)
+        else:
+            new_rotation = self._start_rotation + delta_angle
+            target.setRotation(new_rotation)
+            if hasattr(target, 'item_data'):
+                target.item_data.rotation = new_rotation
 
         self._handle_group.update_positions()
 
@@ -815,15 +981,76 @@ class SelectTool(BaseTool):
     def key_press(self, event):
         if event.key() == Qt.Key.Key_Delete or event.key() == Qt.Key.Key_Backspace:
             self._delete_selected()
+            event.accept()
+        elif event.key() in (
+            Qt.Key.Key_Left, Qt.Key.Key_Right, Qt.Key.Key_Up, Qt.Key.Key_Down
+        ):
+            self._arrow_move(event.key())
+            event.accept()
         elif event.key() == Qt.Key.Key_Escape:
             if self._vertex_editing:
                 self._exit_vertex_mode()
+                event.accept()
                 return
             scene = self.canvas.get_scene()
             if scene:
                 scene.clearSelection()
             if self._handle_group:
                 self._handle_group.detach()
+            event.accept()
+        else:
+            event.ignore()
+
+    def _arrow_move(self, key):
+        """Move all selected items by the configured arrow key step."""
+        scene = self.canvas.get_scene()
+        if not scene:
+            return
+        selected = [
+            i for i in scene.selectedItems()
+            if hasattr(i, 'item_data') and not i.item_data.locked
+        ]
+        if not selected:
+            return
+
+        from app.models.settings import get_settings
+        step = get_settings().arrow_key_step
+        dx = dy = 0.0
+        if key == Qt.Key.Key_Left:
+            dx = -step
+        elif key == Qt.Key.Key_Right:
+            dx = step
+        elif key == Qt.Key.Key_Up:
+            dy = -step
+        else:
+            dy = step
+
+        # For groups, also move their children so the group stays coherent
+        from app.canvas.canvas_items import PublisherGroupItem
+        all_items = []
+        for item in selected:
+            if item not in all_items:
+                all_items.append(item)
+            if isinstance(item, PublisherGroupItem):
+                for child in item.get_child_items(scene):
+                    if child not in all_items:
+                        all_items.append(child)
+
+        use_macro = len(all_items) > 1
+        if use_macro:
+            self.canvas.begin_macro("Move Items")
+        for item in all_items:
+            old_pos = item.pos()
+            new_pos = old_pos + QPointF(dx, dy)
+            item.setPos(new_pos)
+            item.item_data.x = new_pos.x()
+            item.item_data.y = new_pos.y()
+            self.canvas.push_command(MoveItemCommand(item, old_pos, new_pos))
+        if use_macro:
+            self.canvas.end_macro()
+
+        if self._handle_group and self._handle_group.target:
+            self._handle_group.update_positions()
 
     def _delete_selected(self):
         if self._vertex_editing:

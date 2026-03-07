@@ -33,7 +33,7 @@ class BaseTool(ABC):
         pass
 
     def key_press(self, event: QKeyEvent):
-        pass
+        event.ignore()
 
     def key_release(self, event: QKeyEvent):
         pass

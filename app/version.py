@@ -1,8 +1,25 @@
 """Single source of truth for application version and release notes."""
 
-VERSION = "1.1.0"
+VERSION = "1.2.0"
 
 RELEASE_NOTES = {
+    "1.2.0": [
+        "Duplicate Along Line — evenly space copies horizontally or vertically via right-click",
+        "Fix group rotation — children now orbit correctly around the group center with proper undo/redo",
+        "Add Rotate 90° button in properties panel (works for items, lines, and groups)",
+        "Arrow keys move selected items; step size configurable in Preferences",
+        "Fix items jumping when properties panel auto-shows on selection",
+        "Shape/text/freehand preview now renders above existing objects while drawing",
+        "Fix double-click to edit text boxes from the select tool",
+        "Fix redo keyboard shortcut on Windows (Ctrl+Y and Ctrl+Shift+Z both now work)",
+        "Fix lines: copy-after-rotate no longer produces diagonal, endpoints stay correct after move",
+        "Fix lines: selection shows 2 endpoint handles instead of useless 8-corner box",
+        "Fix lines: dragging endpoint handles now properly resizes the line",
+        "Fix lines: fill/texture hidden in properties panel (lines have no fill)",
+        "Fix lines: W/H hidden in properties panel; Rotation shows actual line angle and is editable",
+        "Lines: hold Shift while dragging an endpoint to snap angle to 45-degree increments",
+        "Fix image import doing nothing on Windows (dialog now deferred past mouse event)",
+    ],
     "1.1.0": [
         "Texture fills for shapes (wood, marble, stone, metal, fabric, paper)",
         "Line/arrow angle snapping (hold Shift), easier selection, and copy/paste fix",

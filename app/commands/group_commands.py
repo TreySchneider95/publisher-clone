@@ -48,3 +48,37 @@ class UngroupItemsCommand(QUndoCommand):
     def undo(self):
         self.scene.addItem(self.group_item)
         self.group_item.update_bounds_from_children(self.scene)
+
+
+class UpdateGroupBoundsCommand(QUndoCommand):
+    """Refit the group's bounding box to match its current children positions.
+
+    Stores old bounds for undo. Push this LAST inside a macro so that on redo
+    it runs after children have moved, and on undo (LIFO) it runs first and
+    restores stored bounds before child commands move children back.
+    """
+
+    def __init__(self, group_item, scene, text="Update Group Bounds"):
+        super().__init__(text)
+        from PyQt6.QtCore import QRectF  # noqa — local import avoids circular deps
+        self.group_item = group_item
+        self.scene = scene
+        # Snapshot OLD bounds so undo can restore them exactly
+        d = group_item.item_data
+        self._old_x = d.x
+        self._old_y = d.y
+        self._old_w = d.width
+        self._old_h = d.height
+
+    def redo(self):
+        self.group_item.update_bounds_from_children(self.scene)
+
+    def undo(self):
+        from PyQt6.QtCore import QRectF
+        d = self.group_item.item_data
+        d.x = self._old_x
+        d.y = self._old_y
+        d.width = self._old_w
+        d.height = self._old_h
+        self.group_item.setPos(self._old_x, self._old_y)
+        self.group_item.setRect(QRectF(0, 0, self._old_w, self._old_h))

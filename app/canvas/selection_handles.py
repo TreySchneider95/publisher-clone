@@ -16,6 +16,9 @@ class HandleType:
     BOTTOM_CENTER = 6
     BOTTOM_RIGHT = 7
     ROTATE = 8
+    # Endpoint handles used exclusively for line/arrow items
+    ENDPOINT_1 = 9   # start point (p1)
+    ENDPOINT_2 = 10  # end point (p2)
 
 
 _CURSORS = {
@@ -28,6 +31,8 @@ _CURSORS = {
     HandleType.BOTTOM_CENTER: Qt.CursorShape.SizeVerCursor,
     HandleType.BOTTOM_RIGHT: Qt.CursorShape.SizeFDiagCursor,
     HandleType.ROTATE: Qt.CursorShape.CrossCursor,
+    HandleType.ENDPOINT_1: Qt.CursorShape.SizeAllCursor,
+    HandleType.ENDPOINT_2: Qt.CursorShape.SizeAllCursor,
 }
 
 HANDLE_SIZE = 8
@@ -80,19 +85,30 @@ class SelectionHandleGroup:
         self._handles: list[ResizeHandle | RotateHandle] = []
         self._target: QGraphicsItem | None = None
 
+    def _is_line_item(self, item) -> bool:
+        from app.canvas.canvas_items import PublisherLineItem, PublisherArrowItem
+        return isinstance(item, (PublisherLineItem, PublisherArrowItem))
+
     def attach(self, item: QGraphicsItem):
         self.detach()
         self._target = item
 
-        # Create 8 resize handles + 1 rotate
-        for ht in range(8):
-            h = ResizeHandle(ht)
-            self.scene.addItem(h)
-            self._handles.append(h)
+        if self._is_line_item(item):
+            # Lines only need two endpoint handles; rotation and rect handles are meaningless
+            for ht in (HandleType.ENDPOINT_1, HandleType.ENDPOINT_2):
+                h = ResizeHandle(ht)
+                self.scene.addItem(h)
+                self._handles.append(h)
+        else:
+            # Create 8 resize handles + 1 rotate
+            for ht in range(8):
+                h = ResizeHandle(ht)
+                self.scene.addItem(h)
+                self._handles.append(h)
 
-        rh = RotateHandle()
-        self.scene.addItem(rh)
-        self._handles.append(rh)
+            rh = RotateHandle()
+            self.scene.addItem(rh)
+            self._handles.append(rh)
 
         self.update_positions()
 
@@ -107,8 +123,20 @@ class SelectionHandleGroup:
         if not self._target:
             return
 
+        transform = self._target.sceneTransform()
+
+        if self._is_line_item(self._target):
+            line = self._target.line()
+            p1_scene = transform.map(line.p1())
+            p2_scene = transform.map(line.p2())
+            for h in self._handles:
+                if h.handle_type == HandleType.ENDPOINT_1:
+                    h.setPos(p1_scene)
+                elif h.handle_type == HandleType.ENDPOINT_2:
+                    h.setPos(p2_scene)
+            return
+
         rect = self._target.boundingRect()
-        pos = self._target.pos()
 
         corners = [
             rect.topLeft(),       # TOP_LEFT
@@ -121,7 +149,6 @@ class SelectionHandleGroup:
             rect.bottomRight(),   # BOTTOM_RIGHT
         ]
 
-        transform = self._target.sceneTransform()
         for i, h in enumerate(self._handles[:8]):
             scene_pt = transform.map(corners[i])
             h.setPos(scene_pt)

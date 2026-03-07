@@ -5,11 +5,13 @@ from PyQt6.QtWidgets import (
     QDoubleSpinBox, QSpinBox, QComboBox, QCheckBox, QLineEdit,
     QGroupBox, QFormLayout, QPushButton, QFontComboBox, QScrollArea
 )
+import math
+
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QFont
 
 from app.canvas.canvas_items import PublisherTextItem, PublisherGroupItem
-from app.models.items import TextItemData
+from app.models.items import TextItemData, LineItemData, ArrowItemData
 from app.models.enums import UnitType, points_to_unit, unit_to_points
 from app.ui.color_button import ColorButton
 
@@ -30,6 +32,7 @@ class PropertiesPanel(QDockWidget):
     align_center_v_requested = pyqtSignal()
     distribute_h_requested = pyqtSignal()
     distribute_v_requested = pyqtSignal()
+    rotate_90_requested = pyqtSignal()
 
     def __init__(self, parent=None):
         super().__init__("Properties", parent)
@@ -80,6 +83,7 @@ class PropertiesPanel(QDockWidget):
     def _build_transform_group(self):
         self._transform_group = QGroupBox("Transform")
         form = QFormLayout()
+        self._transform_form = form
 
         suffix = self._unit_suffix()
 
@@ -130,6 +134,7 @@ class PropertiesPanel(QDockWidget):
         self._fill_btn.set_allow_transparent(True)
         self._fill_btn.color_changed.connect(self._on_fill_changed)
         form.addRow("Fill:", self._fill_btn)
+        self._fill_row = 0
 
         # Stroke color
         self._stroke_btn = ColorButton("#000000")
@@ -148,6 +153,9 @@ class PropertiesPanel(QDockWidget):
         self._texture_btn = QPushButton("Texture: None")
         self._texture_btn.clicked.connect(self._on_texture_btn_clicked)
         form.addRow("Texture:", self._texture_btn)
+        self._texture_row = 3
+
+        self._appearance_form = form
 
         # Opacity
         self._opacity_spin = QDoubleSpinBox()
@@ -176,16 +184,22 @@ class PropertiesPanel(QDockWidget):
         self._layout.addWidget(self._layer_order_group)
 
     def _build_flip_group(self):
-        self._flip_group = QGroupBox("Flip")
-        layout = QHBoxLayout()
+        self._flip_group = QGroupBox("Flip / Rotate")
+        layout = QVBoxLayout()
 
+        row1 = QHBoxLayout()
         self._flip_h_btn = QPushButton("Flip Horizontal")
         self._flip_h_btn.clicked.connect(self.flip_h_requested.emit)
-        layout.addWidget(self._flip_h_btn)
+        row1.addWidget(self._flip_h_btn)
 
         self._flip_v_btn = QPushButton("Flip Vertical")
         self._flip_v_btn.clicked.connect(self.flip_v_requested.emit)
-        layout.addWidget(self._flip_v_btn)
+        row1.addWidget(self._flip_v_btn)
+        layout.addLayout(row1)
+
+        self._rotate_90_btn = QPushButton("Rotate 90°")
+        self._rotate_90_btn.clicked.connect(self.rotate_90_requested.emit)
+        layout.addWidget(self._rotate_90_btn)
 
         self._flip_group.setLayout(layout)
         self._layout.addWidget(self._flip_group)
@@ -293,6 +307,12 @@ class PropertiesPanel(QDockWidget):
         self._align_group.setVisible(enabled)
         self._text_group.setVisible(False)
         self._no_selection_label.setVisible(not enabled)
+        if enabled:
+            # Reset hidden rows — update_from_item will re-hide as needed
+            self._transform_form.setRowVisible(2, True)
+            self._transform_form.setRowVisible(3, True)
+            self._appearance_form.setRowVisible(self._fill_row, True)
+            self._appearance_form.setRowVisible(self._texture_row, True)
 
     def update_from_item(self, item):
         """Update panel to reflect the given item's properties."""
@@ -309,7 +329,11 @@ class PropertiesPanel(QDockWidget):
         self._y_spin.setValue(self._to_display(data.y))
         self._w_spin.setValue(self._to_display(data.width))
         self._h_spin.setValue(self._to_display(data.height))
-        self._rot_spin.setValue(data.rotation)
+        # For lines, rotation displays the computed angle of the endpoint vector
+        if isinstance(data, (LineItemData, ArrowItemData)):
+            self._rot_spin.setValue(math.degrees(math.atan2(data.y2, data.x2)))
+        else:
+            self._rot_spin.setValue(data.rotation)
 
         # For groups, show first child's appearance rather than the invisible overlay
         appearance_data = data
@@ -317,6 +341,13 @@ class PropertiesPanel(QDockWidget):
             children = item.get_child_items(item.scene())
             if children:
                 appearance_data = children[0].item_data
+
+        # Hide W/H for lines (meaningless); rotation stays but shows line angle
+        is_line = isinstance(data, (LineItemData, ArrowItemData))
+        self._transform_form.setRowVisible(2, not is_line)   # W
+        self._transform_form.setRowVisible(3, not is_line)   # H
+        self._appearance_form.setRowVisible(self._fill_row, not is_line)
+        self._appearance_form.setRowVisible(self._texture_row, not is_line)
 
         # Appearance
         self._fill_btn.set_color(appearance_data.fill_color)
@@ -366,9 +397,16 @@ class PropertiesPanel(QDockWidget):
         data = self._current_item.item_data
         data.x = self._to_points(self._x_spin.value())
         data.y = self._to_points(self._y_spin.value())
-        data.width = self._to_points(self._w_spin.value())
-        data.height = self._to_points(self._h_spin.value())
-        data.rotation = self._rot_spin.value()
+        if isinstance(data, (LineItemData, ArrowItemData)):
+            # Rotation spinner controls the line angle; length stays fixed
+            length = math.hypot(data.x2, data.y2)
+            angle_rad = math.radians(self._rot_spin.value())
+            data.x2 = length * math.cos(angle_rad)
+            data.y2 = length * math.sin(angle_rad)
+        else:
+            data.width = self._to_points(self._w_spin.value())
+            data.height = self._to_points(self._h_spin.value())
+            data.rotation = self._rot_spin.value()
         self._current_item.sync_from_data()
         self.property_changed.emit()
 

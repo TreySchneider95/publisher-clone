@@ -103,7 +103,11 @@ class PublisherMenuBar(QMenuBar):
         self.undo_action.triggered.connect(self.undo_requested.emit)
 
         self.redo_action = menu.addAction("&Redo")
-        self.redo_action.setShortcut(QKeySequence.StandardKey.Redo)
+        self.redo_action.setShortcuts([
+            QKeySequence.StandardKey.Redo,
+            QKeySequence("Ctrl+Y"),
+            QKeySequence("Ctrl+Shift+Z"),
+        ])
         self.redo_action.triggered.connect(self.redo_requested.emit)
 
         menu.addSeparator()

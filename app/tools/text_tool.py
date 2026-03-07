@@ -48,6 +48,7 @@ class TextTool(BaseTool):
         self._preview = QGraphicsRectItem(0, 0, 0, 0)
         self._preview.setPen(QPen(QColor(0, 120, 215), 1, Qt.PenStyle.DashLine))
         self._preview.setBrush(QBrush(QColor(74, 144, 217, 20)))
+        self._preview.setZValue(1e9)
         scene.addItem(self._preview)
 
     def mouse_move(self, event):

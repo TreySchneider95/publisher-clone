@@ -70,6 +70,7 @@ class ShapeTool(BaseTool):
             self._preview_item.setPen(pen)
 
         if self._preview_item:
+            self._preview_item.setZValue(1e9)
             scene.addItem(self._preview_item)
 
     def mouse_move(self, event):
@@ -140,6 +141,7 @@ class ShapeTool(BaseTool):
             self._polygon_preview = QGraphicsPolygonItem(polygon)
             self._polygon_preview.setPen(QPen(QColor(0, 120, 215), 1, Qt.PenStyle.DashLine))
             self._polygon_preview.setBrush(QBrush(QColor(74, 144, 217, 40)))
+            self._polygon_preview.setZValue(1e9)
             scene.addItem(self._polygon_preview)
 
     def _finish_polygon(self):
@@ -213,15 +215,15 @@ class ShapeTool(BaseTool):
         self.canvas.push_command(cmd)
 
     def _create_line(self, start: QPointF, end: QPointF, scene):
-        length = ((end.x() - start.x())**2 + (end.y() - start.y())**2)**0.5
-        if length < 5:
+        dx = end.x() - start.x()
+        dy = end.y() - start.y()
+        if (dx**2 + dy**2)**0.5 < 5:
             return
         defs = get_settings().defaults
         data = LineItemData(
             x=start.x(), y=start.y(),
-            x2=end.x(), y2=end.y(),
-            width=abs(end.x() - start.x()),
-            height=abs(end.y() - start.y()),
+            x2=dx, y2=dy,
+            width=abs(dx), height=abs(dy),
             stroke_color=defs.stroke_color,
             stroke_width=defs.stroke_width,
         )
@@ -230,15 +232,15 @@ class ShapeTool(BaseTool):
         self.canvas.push_command(cmd)
 
     def _create_arrow(self, start: QPointF, end: QPointF, scene):
-        length = ((end.x() - start.x())**2 + (end.y() - start.y())**2)**0.5
-        if length < 5:
+        dx = end.x() - start.x()
+        dy = end.y() - start.y()
+        if (dx**2 + dy**2)**0.5 < 5:
             return
         defs = get_settings().defaults
         data = ArrowItemData(
             x=start.x(), y=start.y(),
-            x2=end.x(), y2=end.y(),
-            width=abs(end.x() - start.x()),
-            height=abs(end.y() - start.y()),
+            x2=dx, y2=dy,
+            width=abs(dx), height=abs(dy),
             stroke_color=defs.stroke_color,
             stroke_width=defs.stroke_width,
         )
@@ -282,3 +284,6 @@ class ShapeTool(BaseTool):
                 self._remove_polygon_preview()
             self._remove_preview()
             self._drawing = False
+            event.accept()
+        else:
+            event.ignore()
