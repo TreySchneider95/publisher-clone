@@ -2,7 +2,7 @@
 
 import base64
 from PyQt6.QtWidgets import QFileDialog
-from PyQt6.QtCore import Qt, QPointF
+from PyQt6.QtCore import Qt, QPointF, QTimer
 from PyQt6.QtGui import QImage
 
 from app.tools.base_tool import BaseTool
@@ -23,6 +23,12 @@ class ImageTool(BaseTool):
             return
 
         pos = event.scenePos()
+        # Defer the dialog until after the mouse event finishes processing.
+        # On Windows, opening a modal dialog inside a mouse press event causes
+        # it to receive the pending mouse release and close immediately.
+        QTimer.singleShot(0, lambda: self._open_dialog(scene, pos))
+
+    def _open_dialog(self, scene, pos):
         view = self.canvas.get_view()
 
         file_path, _ = QFileDialog.getOpenFileName(
@@ -30,11 +36,13 @@ class ImageTool(BaseTool):
             "Images (*.png *.jpg *.jpeg *.bmp *.gif *.svg *.webp);;All Files (*)"
         )
         if not file_path:
+            self.canvas.switch_to_select()
             return
 
         # Load and encode image
         img = QImage(file_path)
         if img.isNull():
+            self.canvas.switch_to_select()
             return
 
         # Read raw file bytes for base64

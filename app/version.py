@@ -16,6 +16,7 @@ RELEASE_NOTES = {
         "Fix lines: fill/texture hidden in properties panel (lines have no fill)",
         "Fix lines: W/H hidden in properties panel; Rotation shows actual line angle and is editable",
         "Lines: hold Shift while dragging an endpoint to snap angle to 45-degree increments",
+        "Fix image import doing nothing on Windows (dialog now deferred past mouse event)",
     ],
     "1.1.0": [
         "Texture fills for shapes (wood, marble, stone, metal, fabric, paper)",
