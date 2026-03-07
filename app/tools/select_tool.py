@@ -889,15 +889,20 @@ class SelectTool(BaseTool):
     def key_press(self, event):
         if event.key() == Qt.Key.Key_Delete or event.key() == Qt.Key.Key_Backspace:
             self._delete_selected()
+            event.accept()
         elif event.key() == Qt.Key.Key_Escape:
             if self._vertex_editing:
                 self._exit_vertex_mode()
+                event.accept()
                 return
             scene = self.canvas.get_scene()
             if scene:
                 scene.clearSelection()
             if self._handle_group:
                 self._handle_group.detach()
+            event.accept()
+        else:
+            event.ignore()
 
     def _delete_selected(self):
         if self._vertex_editing:

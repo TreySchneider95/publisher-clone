@@ -147,6 +147,8 @@ class PublisherScene(QGraphicsScene):
     def keyPressEvent(self, event: QKeyEvent):
         if self._tool_manager and self._tool_manager.active_tool:
             self._tool_manager.active_tool.key_press(event)
+            if not event.isAccepted():
+                super().keyPressEvent(event)
         else:
             super().keyPressEvent(event)
 

@@ -284,3 +284,6 @@ class ShapeTool(BaseTool):
                 self._remove_polygon_preview()
             self._remove_preview()
             self._drawing = False
+            event.accept()
+        else:
+            event.ignore()

@@ -9,6 +9,7 @@ RELEASE_NOTES = {
         "Fix items jumping when properties panel auto-shows on selection",
         "Shape/text/freehand preview now renders above existing objects while drawing",
         "Fix double-click to edit text boxes from the select tool",
+        "Fix redo keyboard shortcut on Windows (Ctrl+Y and Ctrl+Shift+Z both now work)",
     ],
     "1.1.0": [
         "Texture fills for shapes (wood, marble, stone, metal, fabric, paper)",
