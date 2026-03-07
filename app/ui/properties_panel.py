@@ -5,6 +5,8 @@ from PyQt6.QtWidgets import (
     QDoubleSpinBox, QSpinBox, QComboBox, QCheckBox, QLineEdit,
     QGroupBox, QFormLayout, QPushButton, QFontComboBox, QScrollArea
 )
+import math
+
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QFont
 
@@ -299,10 +301,9 @@ class PropertiesPanel(QDockWidget):
         self._text_group.setVisible(False)
         self._no_selection_label.setVisible(not enabled)
         if enabled:
-            # Reset all hidden rows — update_from_item will re-hide as needed
+            # Reset hidden rows — update_from_item will re-hide as needed
             self._transform_form.setRowVisible(2, True)
             self._transform_form.setRowVisible(3, True)
-            self._transform_form.setRowVisible(4, True)
             self._appearance_form.setRowVisible(self._fill_row, True)
             self._appearance_form.setRowVisible(self._texture_row, True)
 
@@ -321,7 +322,11 @@ class PropertiesPanel(QDockWidget):
         self._y_spin.setValue(self._to_display(data.y))
         self._w_spin.setValue(self._to_display(data.width))
         self._h_spin.setValue(self._to_display(data.height))
-        self._rot_spin.setValue(data.rotation)
+        # For lines, rotation displays the computed angle of the endpoint vector
+        if isinstance(data, (LineItemData, ArrowItemData)):
+            self._rot_spin.setValue(math.degrees(math.atan2(data.y2, data.x2)))
+        else:
+            self._rot_spin.setValue(data.rotation)
 
         # For groups, show first child's appearance rather than the invisible overlay
         appearance_data = data
@@ -330,11 +335,10 @@ class PropertiesPanel(QDockWidget):
             if children:
                 appearance_data = children[0].item_data
 
-        # Hide W/H/Rotation and fill/texture for line and arrow items
+        # Hide W/H for lines (meaningless); rotation stays but shows line angle
         is_line = isinstance(data, (LineItemData, ArrowItemData))
         self._transform_form.setRowVisible(2, not is_line)   # W
         self._transform_form.setRowVisible(3, not is_line)   # H
-        self._transform_form.setRowVisible(4, not is_line)   # Rotation
         self._appearance_form.setRowVisible(self._fill_row, not is_line)
         self._appearance_form.setRowVisible(self._texture_row, not is_line)
 
@@ -386,7 +390,13 @@ class PropertiesPanel(QDockWidget):
         data = self._current_item.item_data
         data.x = self._to_points(self._x_spin.value())
         data.y = self._to_points(self._y_spin.value())
-        if not isinstance(data, (LineItemData, ArrowItemData)):
+        if isinstance(data, (LineItemData, ArrowItemData)):
+            # Rotation spinner controls the line angle; length stays fixed
+            length = math.hypot(data.x2, data.y2)
+            angle_rad = math.radians(self._rot_spin.value())
+            data.x2 = length * math.cos(angle_rad)
+            data.y2 = length * math.sin(angle_rad)
+        else:
             data.width = self._to_points(self._w_spin.value())
             data.height = self._to_points(self._h_spin.value())
             data.rotation = self._rot_spin.value()
