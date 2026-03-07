@@ -145,16 +145,20 @@ class PublisherEllipseItem(QGraphicsEllipseItem, PublisherItemMixin):
 
 
 class PublisherLineItem(QGraphicsLineItem, PublisherItemMixin):
-    """Line item on the canvas."""
+    """Line item on the canvas.
+
+    x2, y2 in item_data are the endpoint offset relative to (x, y) — i.e. dx, dy.
+    Rotation is always 0; direction is encoded in x2/y2.
+    """
 
     def __init__(self, data: LineItemData, parent=None):
-        super().__init__(0, 0, data.x2 - data.x, data.y2 - data.y, parent)
+        super().__init__(0, 0, data.x2, data.y2, parent)
         self._init_publisher_item(data)
         self._apply_style()
 
     def _get_flip_rect(self) -> QRectF:
         d = self.item_data
-        return QRectF(QPointF(0, 0), QPointF(d.x2 - d.x, d.y2 - d.y)).normalized()
+        return QRectF(QPointF(0, 0), QPointF(d.x2, d.y2)).normalized()
 
     def _apply_style(self):
         self.setPen(self._make_pen())
@@ -170,7 +174,8 @@ class PublisherLineItem(QGraphicsLineItem, PublisherItemMixin):
     def sync_from_data(self):
         super().sync_from_data()
         d = self.item_data
-        self.setLine(0, 0, d.x2 - d.x, d.y2 - d.y)
+        self.setRotation(0)  # direction is in x2/y2; rotation never applies
+        self.setLine(0, 0, d.x2, d.y2)
         self._apply_style()
 
     def itemChange(self, change, value):
@@ -181,16 +186,19 @@ class PublisherLineItem(QGraphicsLineItem, PublisherItemMixin):
 
 
 class PublisherArrowItem(QGraphicsLineItem, PublisherItemMixin):
-    """Arrow (line with arrowhead) item on the canvas."""
+    """Arrow (line with arrowhead) item on the canvas.
+
+    x2, y2 in item_data are the endpoint offset relative to (x, y) — i.e. dx, dy.
+    """
 
     def __init__(self, data: ArrowItemData, parent=None):
-        super().__init__(0, 0, data.x2 - data.x, data.y2 - data.y, parent)
+        super().__init__(0, 0, data.x2, data.y2, parent)
         self._init_publisher_item(data)
         self._apply_style()
 
     def _get_flip_rect(self) -> QRectF:
         d = self.item_data
-        return QRectF(QPointF(0, 0), QPointF(d.x2 - d.x, d.y2 - d.y)).normalized()
+        return QRectF(QPointF(0, 0), QPointF(d.x2, d.y2)).normalized()
 
     def _apply_style(self):
         self.setPen(self._make_pen())
@@ -235,7 +243,8 @@ class PublisherArrowItem(QGraphicsLineItem, PublisherItemMixin):
     def sync_from_data(self):
         super().sync_from_data()
         d = self.item_data
-        self.setLine(0, 0, d.x2 - d.x, d.y2 - d.y)
+        self.setRotation(0)  # direction is in x2/y2; rotation never applies
+        self.setLine(0, 0, d.x2, d.y2)
         self._apply_style()
 
     def itemChange(self, change, value):

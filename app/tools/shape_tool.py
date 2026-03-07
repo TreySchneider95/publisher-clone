@@ -215,15 +215,15 @@ class ShapeTool(BaseTool):
         self.canvas.push_command(cmd)
 
     def _create_line(self, start: QPointF, end: QPointF, scene):
-        length = ((end.x() - start.x())**2 + (end.y() - start.y())**2)**0.5
-        if length < 5:
+        dx = end.x() - start.x()
+        dy = end.y() - start.y()
+        if (dx**2 + dy**2)**0.5 < 5:
             return
         defs = get_settings().defaults
         data = LineItemData(
             x=start.x(), y=start.y(),
-            x2=end.x(), y2=end.y(),
-            width=abs(end.x() - start.x()),
-            height=abs(end.y() - start.y()),
+            x2=dx, y2=dy,
+            width=abs(dx), height=abs(dy),
             stroke_color=defs.stroke_color,
             stroke_width=defs.stroke_width,
         )
@@ -232,15 +232,15 @@ class ShapeTool(BaseTool):
         self.canvas.push_command(cmd)
 
     def _create_arrow(self, start: QPointF, end: QPointF, scene):
-        length = ((end.x() - start.x())**2 + (end.y() - start.y())**2)**0.5
-        if length < 5:
+        dx = end.x() - start.x()
+        dy = end.y() - start.y()
+        if (dx**2 + dy**2)**0.5 < 5:
             return
         defs = get_settings().defaults
         data = ArrowItemData(
             x=start.x(), y=start.y(),
-            x2=end.x(), y2=end.y(),
-            width=abs(end.x() - start.x()),
-            height=abs(end.y() - start.y()),
+            x2=dx, y2=dy,
+            width=abs(dx), height=abs(dy),
             stroke_color=defs.stroke_color,
             stroke_width=defs.stroke_width,
         )

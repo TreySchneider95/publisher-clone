@@ -154,6 +154,33 @@ class EditVertexCommand(QUndoCommand):
         self._apply(self.old_state)
 
 
+class ResizeLineCommand(QUndoCommand):
+    """Move a line endpoint, updating position and/or relative dx/dy."""
+
+    def __init__(self, item, old_x, old_y, old_x2, old_y2,
+                 new_x, new_y, new_x2, new_y2, text="Resize Line"):
+        super().__init__(text)
+        self.item = item
+        self.old = (old_x, old_y, old_x2, old_y2)
+        self.new = (new_x, new_y, new_x2, new_y2)
+
+    def _apply(self, state):
+        x, y, x2, y2 = state
+        d = self.item.item_data
+        d.x = x
+        d.y = y
+        d.x2 = x2
+        d.y2 = y2
+        self.item.setPos(x, y)
+        self.item.setLine(0, 0, x2, y2)
+
+    def redo(self):
+        self._apply(self.new)
+
+    def undo(self):
+        self._apply(self.old)
+
+
 class RotateItemCommand(QUndoCommand):
     """Rotate an item."""
 

@@ -10,6 +10,10 @@ RELEASE_NOTES = {
         "Shape/text/freehand preview now renders above existing objects while drawing",
         "Fix double-click to edit text boxes from the select tool",
         "Fix redo keyboard shortcut on Windows (Ctrl+Y and Ctrl+Shift+Z both now work)",
+        "Fix lines: copy-after-rotate no longer produces diagonal, endpoints stay correct after move",
+        "Fix lines: selection shows 2 endpoint handles instead of useless 8-corner box",
+        "Fix lines: dragging endpoint handles now properly resizes the line",
+        "Fix lines: fill/texture hidden in properties panel (lines have no fill)",
     ],
     "1.1.0": [
         "Texture fills for shapes (wood, marble, stone, metal, fabric, paper)",

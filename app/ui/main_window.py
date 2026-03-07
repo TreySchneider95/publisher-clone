@@ -542,9 +542,7 @@ class MainWindow(QMainWindow):
             new_data.id = old_to_new[data.id]
             new_data.x += 20
             new_data.y += 20
-            if hasattr(new_data, 'x2'):
-                new_data.x2 += 20
-                new_data.y2 += 20
+            # x2/y2 on line/arrow are relative offsets — do not shift them
             # Remap child_ids for groups
             if isinstance(new_data, GroupItemData):
                 new_data.child_ids = [

@@ -9,7 +9,7 @@ from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QFont
 
 from app.canvas.canvas_items import PublisherTextItem, PublisherGroupItem
-from app.models.items import TextItemData
+from app.models.items import TextItemData, LineItemData, ArrowItemData
 from app.models.enums import UnitType, points_to_unit, unit_to_points
 from app.ui.color_button import ColorButton
 
@@ -130,6 +130,7 @@ class PropertiesPanel(QDockWidget):
         self._fill_btn.set_allow_transparent(True)
         self._fill_btn.color_changed.connect(self._on_fill_changed)
         form.addRow("Fill:", self._fill_btn)
+        self._fill_row = 0
 
         # Stroke color
         self._stroke_btn = ColorButton("#000000")
@@ -148,6 +149,9 @@ class PropertiesPanel(QDockWidget):
         self._texture_btn = QPushButton("Texture: None")
         self._texture_btn.clicked.connect(self._on_texture_btn_clicked)
         form.addRow("Texture:", self._texture_btn)
+        self._texture_row = 3
+
+        self._appearance_form = form
 
         # Opacity
         self._opacity_spin = QDoubleSpinBox()
@@ -293,6 +297,10 @@ class PropertiesPanel(QDockWidget):
         self._align_group.setVisible(enabled)
         self._text_group.setVisible(False)
         self._no_selection_label.setVisible(not enabled)
+        if enabled:
+            # Reset hidden rows — update_from_item will re-hide as needed
+            self._appearance_form.setRowVisible(self._fill_row, True)
+            self._appearance_form.setRowVisible(self._texture_row, True)
 
     def update_from_item(self, item):
         """Update panel to reflect the given item's properties."""
@@ -317,6 +325,11 @@ class PropertiesPanel(QDockWidget):
             children = item.get_child_items(item.scene())
             if children:
                 appearance_data = children[0].item_data
+
+        # Hide fill/texture for line and arrow items (they have no fill)
+        is_line = isinstance(data, (LineItemData, ArrowItemData))
+        self._appearance_form.setRowVisible(self._fill_row, not is_line)
+        self._appearance_form.setRowVisible(self._texture_row, not is_line)
 
         # Appearance
         self._fill_btn.set_color(appearance_data.fill_color)

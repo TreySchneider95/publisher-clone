@@ -12,7 +12,7 @@ from app.models.items import (
     GroupItemData
 )
 
-FORMAT_VERSION = 1
+FORMAT_VERSION = 2
 
 _TYPE_MAP = {
     ItemType.RECT: RectItemData,
@@ -86,6 +86,9 @@ def deserialize_document(data: dict) -> tuple[Document, list[list]]:
 
         items = []
         for item_dict in page_data.get("items", []):
+            # v1 stored line/arrow x2,y2 as absolute coords; v2+ stores relative
+            if version < 2:
+                item_dict = _migrate_line_v1_to_v2(item_dict)
             item_data = dict_to_item_data(item_dict)
             if item_data:
                 items.append(item_data)
@@ -96,6 +99,15 @@ def deserialize_document(data: dict) -> tuple[Document, list[list]]:
         pages_items.append([])
 
     return doc, pages_items
+
+
+def _migrate_line_v1_to_v2(d: dict) -> dict:
+    """Convert v1 line/arrow data (absolute x2,y2) to v2 (relative x2,y2)."""
+    if d.get("item_type") in ("LINE", "ARROW"):
+        d = dict(d)
+        d["x2"] = d.get("x2", 0) - d.get("x", 0)
+        d["y2"] = d.get("y2", 0) - d.get("y", 0)
+    return d
 
 
 def dict_to_item_data(d: dict) -> Optional[ItemData]:

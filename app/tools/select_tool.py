@@ -13,7 +13,7 @@ from app.canvas.selection_handles import (
 from app.canvas.alignment_guides import AlignmentGuideEngine
 from app.commands.item_commands import (
     MoveItemCommand, ResizeItemCommand, RotateItemCommand,
-    ResizePointsItemCommand, EditVertexCommand,
+    ResizePointsItemCommand, EditVertexCommand, ResizeLineCommand,
 )
 from app.models.settings import get_settings
 
@@ -55,6 +55,8 @@ class SelectTool(BaseTool):
         self._vertex_handles: VertexHandleGroup | None = None
         self._vertex_drag_index = -1
         self._vertex_start_state = None  # (x, y, w, h, points)
+        # Line endpoint resize state
+        self._line_resize_start = None  # (old_x, old_y, old_x2, old_y2)
 
     def activate(self):
         self._ensure_handle_group()
@@ -97,6 +99,11 @@ class SelectTool(BaseTool):
         return (hasattr(item, 'item_data')
                 and hasattr(item.item_data, 'points')
                 and isinstance(item.item_data.points, list))
+
+    def _is_line_item(self, item):
+        """Check if item is a line or arrow (uses endpoint handles)."""
+        from app.canvas.canvas_items import PublisherLineItem, PublisherArrowItem
+        return isinstance(item, (PublisherLineItem, PublisherArrowItem))
 
     # --- Mouse events ---
 
@@ -164,6 +171,11 @@ class SelectTool(BaseTool):
                             self._rotate_child_starts.append(
                                 (child, QPointF(child.pos()), child.rotation())
                             )
+                elif handle_type in (HandleType.ENDPOINT_1, HandleType.ENDPOINT_2):
+                    # Line/arrow endpoint drag
+                    self._resizing = True
+                    d = target.item_data
+                    self._line_resize_start = (d.x, d.y, d.x2, d.y2)
                 else:
                     self._resizing = True
                     # For groups, save child start positions for proportional scaling
@@ -284,7 +296,11 @@ class SelectTool(BaseTool):
                 self._handle_group.update_positions()
 
         elif self._resizing and self._handle_group and self._handle_group.target:
-            self._do_resize(pos)
+            target = self._handle_group.target
+            if self._is_line_item(target):
+                self._do_line_resize(pos)
+            else:
+                self._do_resize(pos)
 
         elif self._rotating and self._handle_group and self._handle_group.target:
             self._do_rotate(pos)
@@ -332,7 +348,21 @@ class SelectTool(BaseTool):
             target = self._handle_group.target
             new_pos = target.pos()
 
-            if self._item_start_points is not None:
+            if self._is_line_item(target) and self._line_resize_start is not None:
+                old_x, old_y, old_x2, old_y2 = self._line_resize_start
+                d = target.item_data
+                if (old_x, old_y, old_x2, old_y2) != (d.x, d.y, d.x2, d.y2):
+                    cmd = ResizeLineCommand(
+                        target, old_x, old_y, old_x2, old_y2,
+                        d.x, d.y, d.x2, d.y2
+                    )
+                    self.canvas.push_command(cmd)
+                self._resizing = False
+                self._active_handle = None
+                self._line_resize_start = None
+                self._handle_group.update_positions()
+
+            elif self._item_start_points is not None:
                 # Points-based item (polygon/freehand)
                 new_points = list(target.item_data.points)
                 if self._item_start_points != new_points or self._item_start_pos != new_pos:
@@ -575,9 +605,7 @@ class SelectTool(BaseTool):
                 new_data.id = old_to_new[data.id]
                 new_data.x += off_x
                 new_data.y += off_y
-                if hasattr(new_data, 'x2'):
-                    new_data.x2 += off_x
-                    new_data.y2 += off_y
+                # x2/y2 on line/arrow are relative offsets — do not shift them
                 if isinstance(new_data, GroupItemData):
                     new_data.child_ids = [
                         old_to_new.get(cid, cid) for cid in new_data.child_ids
@@ -659,6 +687,38 @@ class SelectTool(BaseTool):
         self._rubber_band_active = False
 
     # --- Resize / Rotate ---
+
+    def _do_line_resize(self, pos: QPointF):
+        """Drag a line endpoint. ENDPOINT_1 moves the start; ENDPOINT_2 moves the end."""
+        target = self._handle_group.target
+        if not target or self._line_resize_start is None:
+            return
+        ht = self._active_handle
+        old_x, old_y, old_x2, old_y2 = self._line_resize_start
+
+        if ht == HandleType.ENDPOINT_1:
+            # Keep p2 fixed in scene space; move p1 to pos
+            abs_end_x = old_x + old_x2
+            abs_end_y = old_y + old_y2
+            new_x, new_y = pos.x(), pos.y()
+            new_x2 = abs_end_x - new_x
+            new_y2 = abs_end_y - new_y
+            target.setPos(new_x, new_y)
+            target.item_data.x = new_x
+            target.item_data.y = new_y
+            target.item_data.x2 = new_x2
+            target.item_data.y2 = new_y2
+            target.setLine(0, 0, new_x2, new_y2)
+        else:  # ENDPOINT_2
+            # Keep p1 (item origin) fixed; move p2
+            cur_pos = target.pos()
+            new_x2 = pos.x() - cur_pos.x()
+            new_y2 = pos.y() - cur_pos.y()
+            target.item_data.x2 = new_x2
+            target.item_data.y2 = new_y2
+            target.setLine(0, 0, new_x2, new_y2)
+
+        self._handle_group.update_positions()
 
     def _do_resize(self, pos: QPointF):
         target = self._handle_group.target
