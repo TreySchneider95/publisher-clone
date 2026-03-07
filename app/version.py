@@ -14,6 +14,8 @@ RELEASE_NOTES = {
         "Fix lines: selection shows 2 endpoint handles instead of useless 8-corner box",
         "Fix lines: dragging endpoint handles now properly resizes the line",
         "Fix lines: fill/texture hidden in properties panel (lines have no fill)",
+        "Fix lines: W/H/Rotation hidden in properties panel; X/Y update after each move",
+        "Lines: hold Shift while dragging an endpoint to snap angle to 45-degree increments",
     ],
     "1.1.0": [
         "Texture fills for shapes (wood, marble, stone, metal, fabric, paper)",

@@ -464,6 +464,12 @@ class MainWindow(QMainWindow):
         """Refresh the current page thumbnail after any command push/undo/redo."""
         if self.current_scene is not None and 0 <= self.current_page_index < len(self.scenes):
             self.pages_panel.refresh_thumbnail(self.current_page_index, self.current_scene)
+        # Also refresh the properties panel so X/Y/size stay in sync
+        if self.current_scene and self.properties_panel.isVisible():
+            selected = [i for i in self.current_scene.selectedItems()
+                        if hasattr(i, 'item_data')]
+            if selected:
+                self.properties_panel.update_from_item(selected[0])
 
     # --- View toggles ---
 

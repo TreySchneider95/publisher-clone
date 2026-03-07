@@ -80,6 +80,7 @@ class PropertiesPanel(QDockWidget):
     def _build_transform_group(self):
         self._transform_group = QGroupBox("Transform")
         form = QFormLayout()
+        self._transform_form = form
 
         suffix = self._unit_suffix()
 
@@ -298,7 +299,10 @@ class PropertiesPanel(QDockWidget):
         self._text_group.setVisible(False)
         self._no_selection_label.setVisible(not enabled)
         if enabled:
-            # Reset hidden rows — update_from_item will re-hide as needed
+            # Reset all hidden rows — update_from_item will re-hide as needed
+            self._transform_form.setRowVisible(2, True)
+            self._transform_form.setRowVisible(3, True)
+            self._transform_form.setRowVisible(4, True)
             self._appearance_form.setRowVisible(self._fill_row, True)
             self._appearance_form.setRowVisible(self._texture_row, True)
 
@@ -326,8 +330,11 @@ class PropertiesPanel(QDockWidget):
             if children:
                 appearance_data = children[0].item_data
 
-        # Hide fill/texture for line and arrow items (they have no fill)
+        # Hide W/H/Rotation and fill/texture for line and arrow items
         is_line = isinstance(data, (LineItemData, ArrowItemData))
+        self._transform_form.setRowVisible(2, not is_line)   # W
+        self._transform_form.setRowVisible(3, not is_line)   # H
+        self._transform_form.setRowVisible(4, not is_line)   # Rotation
         self._appearance_form.setRowVisible(self._fill_row, not is_line)
         self._appearance_form.setRowVisible(self._texture_row, not is_line)
 
@@ -379,9 +386,10 @@ class PropertiesPanel(QDockWidget):
         data = self._current_item.item_data
         data.x = self._to_points(self._x_spin.value())
         data.y = self._to_points(self._y_spin.value())
-        data.width = self._to_points(self._w_spin.value())
-        data.height = self._to_points(self._h_spin.value())
-        data.rotation = self._rot_spin.value()
+        if not isinstance(data, (LineItemData, ArrowItemData)):
+            data.width = self._to_points(self._w_spin.value())
+            data.height = self._to_points(self._h_spin.value())
+            data.rotation = self._rot_spin.value()
         self._current_item.sync_from_data()
         self.property_changed.emit()
 

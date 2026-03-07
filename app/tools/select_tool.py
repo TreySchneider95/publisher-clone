@@ -298,7 +298,7 @@ class SelectTool(BaseTool):
         elif self._resizing and self._handle_group and self._handle_group.target:
             target = self._handle_group.target
             if self._is_line_item(target):
-                self._do_line_resize(pos)
+                self._do_line_resize(pos, event.modifiers())
             else:
                 self._do_resize(pos)
 
@@ -688,8 +688,11 @@ class SelectTool(BaseTool):
 
     # --- Resize / Rotate ---
 
-    def _do_line_resize(self, pos: QPointF):
-        """Drag a line endpoint. ENDPOINT_1 moves the start; ENDPOINT_2 moves the end."""
+    def _do_line_resize(self, pos: QPointF, modifiers=None):
+        """Drag a line endpoint. ENDPOINT_1 moves the start; ENDPOINT_2 moves the end.
+
+        Hold Shift to snap the angle to 45-degree increments.
+        """
         target = self._handle_group.target
         if not target or self._line_resize_start is None:
             return
@@ -703,6 +706,10 @@ class SelectTool(BaseTool):
             new_x, new_y = pos.x(), pos.y()
             new_x2 = abs_end_x - new_x
             new_y2 = abs_end_y - new_y
+            if modifiers and (modifiers & Qt.KeyboardModifier.ShiftModifier):
+                new_x2, new_y2 = self._snap_line_angle(new_x2, new_y2)
+                new_x = abs_end_x - new_x2
+                new_y = abs_end_y - new_y2
             target.setPos(new_x, new_y)
             target.item_data.x = new_x
             target.item_data.y = new_y
@@ -714,11 +721,23 @@ class SelectTool(BaseTool):
             cur_pos = target.pos()
             new_x2 = pos.x() - cur_pos.x()
             new_y2 = pos.y() - cur_pos.y()
+            if modifiers and (modifiers & Qt.KeyboardModifier.ShiftModifier):
+                new_x2, new_y2 = self._snap_line_angle(new_x2, new_y2)
             target.item_data.x2 = new_x2
             target.item_data.y2 = new_y2
             target.setLine(0, 0, new_x2, new_y2)
 
         self._handle_group.update_positions()
+
+    def _snap_line_angle(self, dx: float, dy: float) -> tuple:
+        """Snap (dx, dy) to the nearest 45-degree angle, preserving length."""
+        length = math.hypot(dx, dy)
+        if length == 0:
+            return dx, dy
+        angle = math.atan2(dy, dx)
+        snap_rad = math.radians(45)
+        angle = round(angle / snap_rad) * snap_rad
+        return length * math.cos(angle), length * math.sin(angle)
 
     def _do_resize(self, pos: QPointF):
         target = self._handle_group.target
