@@ -5,7 +5,8 @@ VERSION = "1.2.0"
 RELEASE_NOTES = {
     "1.2.0": [
         "Duplicate Along Line — evenly space copies horizontally or vertically via right-click",
-        "Fix group rotation — children now orbit correctly around the group center",
+        "Fix group rotation — children now orbit correctly around the group center with proper undo/redo",
+        "Add Rotate 90° button in properties panel (works for items, lines, and groups)",
         "Fix items jumping when properties panel auto-shows on selection",
         "Shape/text/freehand preview now renders above existing objects while drawing",
         "Fix double-click to edit text boxes from the select tool",

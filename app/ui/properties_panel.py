@@ -32,6 +32,7 @@ class PropertiesPanel(QDockWidget):
     align_center_v_requested = pyqtSignal()
     distribute_h_requested = pyqtSignal()
     distribute_v_requested = pyqtSignal()
+    rotate_90_requested = pyqtSignal()
 
     def __init__(self, parent=None):
         super().__init__("Properties", parent)
@@ -183,16 +184,22 @@ class PropertiesPanel(QDockWidget):
         self._layout.addWidget(self._layer_order_group)
 
     def _build_flip_group(self):
-        self._flip_group = QGroupBox("Flip")
-        layout = QHBoxLayout()
+        self._flip_group = QGroupBox("Flip / Rotate")
+        layout = QVBoxLayout()
 
+        row1 = QHBoxLayout()
         self._flip_h_btn = QPushButton("Flip Horizontal")
         self._flip_h_btn.clicked.connect(self.flip_h_requested.emit)
-        layout.addWidget(self._flip_h_btn)
+        row1.addWidget(self._flip_h_btn)
 
         self._flip_v_btn = QPushButton("Flip Vertical")
         self._flip_v_btn.clicked.connect(self.flip_v_requested.emit)
-        layout.addWidget(self._flip_v_btn)
+        row1.addWidget(self._flip_v_btn)
+        layout.addLayout(row1)
+
+        self._rotate_90_btn = QPushButton("Rotate 90°")
+        self._rotate_90_btn.clicked.connect(self.rotate_90_requested.emit)
+        layout.addWidget(self._rotate_90_btn)
 
         self._flip_group.setLayout(layout)
         self._layout.addWidget(self._flip_group)

@@ -410,27 +410,38 @@ class SelectTool(BaseTool):
 
         elif self._rotating and self._handle_group and self._handle_group.target:
             target = self._handle_group.target
-            new_rotation = target.rotation()
             has_children = self._is_group_item(target) and self._rotate_child_starts
-            if self._start_rotation != new_rotation:
-                if has_children:
+            if has_children:
+                # Commit child moves/rotations; UpdateGroupBoundsCommand pushed LAST so
+                # on undo (LIFO) it fires first and restores stored bounds, then children
+                # move back; on redo it fires last and recomputes from moved children.
+                changed = [
+                    (child, sp, sr)
+                    for child, sp, sr in self._rotate_child_starts
+                    if child.pos() != sp or child.rotation() != sr
+                ]
+                if changed:
+                    from app.commands.group_commands import UpdateGroupBoundsCommand
                     self.canvas.begin_macro("Rotate Group")
-                cmd = RotateItemCommand(target, self._start_rotation, new_rotation)
-                self.canvas.push_command(cmd)
-                if has_children:
                     for child, start_pos, start_rot in self._rotate_child_starts:
                         child_new_pos = child.pos()
                         child_new_rot = child.rotation()
-                        if start_pos != child_new_pos:
-                            move_cmd = MoveItemCommand(child, start_pos, child_new_pos)
-                            self.canvas.push_command(move_cmd)
-                        if start_rot != child_new_rot:
-                            rot_cmd = RotateItemCommand(child, start_rot, child_new_rot)
-                            self.canvas.push_command(rot_cmd)
+                        if child_new_pos != start_pos:
+                            self.canvas.push_command(
+                                MoveItemCommand(child, start_pos, child_new_pos)
+                            )
+                        if child_new_rot != start_rot:
+                            self.canvas.push_command(
+                                RotateItemCommand(child, start_rot, child_new_rot)
+                            )
+                    self.canvas.push_command(UpdateGroupBoundsCommand(target, scene))
                     self.canvas.end_macro()
-            # Update group bounds after rotation
-            if has_children and scene:
-                target.update_bounds_from_children(scene)
+            else:
+                new_rotation = target.rotation()
+                if self._start_rotation != new_rotation:
+                    self.canvas.push_command(
+                        RotateItemCommand(target, self._start_rotation, new_rotation)
+                    )
             self._rotating = False
             self._active_handle = None
             self._rotate_child_starts.clear()
@@ -847,21 +858,14 @@ class SelectTool(BaseTool):
             pos.x() - center.x()
         )
         delta_angle = math.degrees(angle_now - angle_start)
-        new_rotation = self._start_rotation + delta_angle
 
-        target.setRotation(new_rotation)
-        if hasattr(target, 'item_data'):
-            target.item_data.rotation = new_rotation
-
-        # For groups, rotate each child around the group center
         if self._is_group_item(target) and self._rotate_child_starts:
+            # Groups must never carry Qt rotation — orbit children around the fixed center
             delta_rad = math.radians(delta_angle)
             cos_a = math.cos(delta_rad)
             sin_a = math.sin(delta_rad)
             gc = self._rotate_center
             for child, start_pos, start_rot in self._rotate_child_starts:
-                # Orbit pos() directly around group center
-                # (the bounding-rect-center terms cancel algebraically)
                 dx = start_pos.x() - gc.x()
                 dy = start_pos.y() - gc.y()
                 new_x = gc.x() + dx * cos_a - dy * sin_a
@@ -871,6 +875,15 @@ class SelectTool(BaseTool):
                 child.item_data.y = new_y
                 child.setRotation(start_rot + delta_angle)
                 child.item_data.rotation = start_rot + delta_angle
+            # Refit the group bounding box to the rotated children
+            scene = self.canvas.get_scene()
+            if scene:
+                target.update_bounds_from_children(scene)
+        else:
+            new_rotation = self._start_rotation + delta_angle
+            target.setRotation(new_rotation)
+            if hasattr(target, 'item_data'):
+                target.item_data.rotation = new_rotation
 
         self._handle_group.update_positions()
 
