@@ -475,6 +475,9 @@ class PublisherGroupItem(QGraphicsRectItem, PublisherItemMixin):
         rect = children[0].sceneBoundingRect()
         for child in children[1:]:
             rect = rect.united(child.sceneBoundingRect())
+        # Groups never carry a Qt rotation — direction lives in children
+        self.setRotation(0)
+        self.item_data.rotation = 0
         # Set group position and size to encompass children
         self.item_data.x = rect.x()
         self.item_data.y = rect.y()
